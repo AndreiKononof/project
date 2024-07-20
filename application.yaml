@@ -5,7 +5,7 @@ spring:
   datasource:
     username: root
     password: Jrcfyf12091995!
-    url: jdbc:mysql://localhost:3306/search_engien?useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/search_engine?useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true
   jpa:
     properties:
       hibernate:
