@@ -12,10 +12,13 @@ public class Lemma {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
+
     @Column(name = "site_id")
     private int siteDBId;
 
+    @Column(name = "lemma")
     private String lemma;
 
+    @Column(name = "frequency")
     private int frequency;
 }
