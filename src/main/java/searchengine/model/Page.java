@@ -13,15 +13,15 @@ public class Page {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @Column(name = "site_id")
-    private int siteDBId;
+    @ManyToOne(cascade = CascadeType.ALL)
+    private SiteDB site;
 
-    @Column(name = "path")
+    @Column(name = "path",columnDefinition = "VARCHAR(255)")
     private String path;
 
     @Column(name = "code")
     private int code;
 
-    @Column(name = "content")
+    @Column(name = "content", columnDefinition = "MEDIUMTEXT")
     private String content;
 }

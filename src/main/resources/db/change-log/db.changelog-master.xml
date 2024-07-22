@@ -31,7 +31,7 @@
             <column name="site_id" type="int">
                 <constraints nullable="false"/>
             </column>
-            <column name="path" type="TEXT">
+            <column name="path" type="VARCHAR(255)">
                 <constraints nullable="false"/>
             </column>
             <column name="code" type="int">
@@ -69,5 +69,8 @@
                 <constraints nullable="false"/>
             </column>
         </createTable>
+        <createIndex tableName="page" indexName="index_path" >
+            <column name="path"/>
+        </createIndex>
     </changeSet>
 </databaseChangeLog>

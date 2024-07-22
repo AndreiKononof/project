@@ -14,7 +14,7 @@ public class Lemma {
     private int id;
 
     @Column(name = "site_id")
-    private int siteDBId;
+    private int siteID;
 
     @Column(name = "lemma")
     private String lemma;
