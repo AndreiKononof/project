@@ -5,5 +5,6 @@ import searchengine.dto.statistics.StatisticsResponse;
 
 public interface StatisticsService {
     StatisticsResponse getStatistics();
-    IndexResponse getIndexing();
+    IndexResponse getStartIndexing();
+    IndexResponse getStopIndexing();
 }

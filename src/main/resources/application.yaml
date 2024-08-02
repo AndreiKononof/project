@@ -20,11 +20,15 @@ spring:
 
 indexing-settings:
   sites:
-    - url: https://www.lenta.ru
-      name: Лента.ру
-    - url: https://www.skillbox.ru
-      name: Skillbox
-    - url: https://www.playback.ru
-      name: PlayBack.Ru
-    - url: http://radiomv.ru/
-      name: radiomv.ru
+#    - url: https://www.lenta.ru
+#      name: Лента.ру
+#    - url: https://www.skillbox.ru
+#      name: Skillbox.ru
+    - url: https://sendel.ru
+      name: sendel.ru
+#    - url: https://www.stmwater.rud
+#      name: Доставка Воды
+#    - url: https://www.playback.ru
+#      name: PlayBack.Ru
+#    - url: http://www.radiomv.ru
+#      name: radiomv.ru

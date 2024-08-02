@@ -1,14 +1,15 @@
 package searchengine.services;
 
+import lombok.Getter;
 import org.jsoup.select.Elements;
 import org.jsoup.nodes.Document;
 import java.util.HashSet;
 import org.jsoup.Jsoup;
 
+@Getter
+public class  LinksSait {
 
-public class LinksSait {
-
-    private String url;
+    private final String url;
 
     public LinksSait(String url) {
         this.url = url;
@@ -18,8 +19,8 @@ public class LinksSait {
     public HashSet<String> getLinks() {
         Document document;
         try {
-            document = Jsoup.connect(url).get();
-            Thread.sleep(100);
+            document = Jsoup.connect(url).userAgent("HeliontSearchBot").referrer("http://www.google.com").get();
+            Thread.sleep(50);
             Elements elements = document.select("a[href]");
             if (!elements.isEmpty()) {
                 elements.forEach(element -> {
@@ -30,7 +31,7 @@ public class LinksSait {
                         boolean checkLengthUrl = link.length() > 1;
                         boolean checkLinks = !links.contains(link) & !links.contains(link.substring(0, link.length() - 1));
                         boolean checkGrid = !link.contains("#");
-                        boolean checkPicture = !link.contains(".png");
+                        boolean checkPicture = !link.contains(".*")||!link.contains("xml");
 
                         if (checkChar & checkLengthUrl & checkGrid & checkPicture & checkLinks) {
                             if (link.endsWith("/")) {

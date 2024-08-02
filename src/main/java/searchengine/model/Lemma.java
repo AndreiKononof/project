@@ -13,10 +13,10 @@ public class Lemma {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @Column(name = "site_id")
-    private int siteID;
+    @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
+    private SiteDB site;
 
-    @Column(name = "lemma")
+    @Column(name = "lemma", columnDefinition = "VARCHAR(255)")
     private String lemma;
 
     @Column(name = "frequency")

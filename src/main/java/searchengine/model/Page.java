@@ -13,7 +13,7 @@ public class Page {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @ManyToOne(cascade = CascadeType.ALL)
+    @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
     private SiteDB site;
 
     @Column(name = "path",columnDefinition = "VARCHAR(255)")
