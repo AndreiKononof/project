@@ -1,8 +1,6 @@
 package searchengine.services;
 
 import lombok.RequiredArgsConstructor;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Service;
 import searchengine.config.Site;
 import searchengine.config.SitesList;
@@ -16,7 +14,6 @@ import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
-import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.time.LocalDateTime;
@@ -33,7 +30,7 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final LemmaRepository lemmaRepository;
     private final IndexRepository indexRepository;
 
-    private final List<Thread> threads = new ArrayList<>();
+    private volatile List<Thread> threads = new ArrayList<>();
     private final SitesList sites;
     private final String[] errors = {
             "Ошибка индексации: главная страница сайта не доступна",
@@ -65,8 +62,8 @@ public class StatisticsServiceImpl implements StatisticsService {
             }
             List<Lemma> lemmaList = lemmaRepository.findAll();
             int lemmas = 0;
-            for (Lemma lemma: lemmaList ){
-                if(lemma.getSite().getId() == siteDB.getId()){
+            for (Lemma lemma : lemmaList) {
+                if (lemma.getSite().getId() == siteDB.getId()) {
                     lemmas++;
                 }
             }
@@ -91,38 +88,35 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     @Override
     public IndexResponse getStartIndexing() {
-        synchronized (siteRepository) {
-            siteRepository.deleteAll();
-        }
-        synchronized (pageRepository) {
-            pageRepository.deleteAll();
-        }
-        synchronized (lemmaRepository) {
-            lemmaRepository.deleteAll();
-        }
-//        synchronized (indexRepository) {
-//            indexRepository.deleteAll();
-//        }
+
+        deleteAllDB();
+
         IndexResponse response = new IndexResponse();
         response.setResult(true);
         response.setError(errors[3]);
 
+        if (!threads.isEmpty()) {
+            for (Thread thread : threads) {
+                thread.interrupt();
+            }
+        }
+
         List<Site> sitesList = sites.getSites();
         for (Site site : sitesList) {
             SiteDB siteDB = mapToSaitDB(StatusSait.INDEXING, site.getUrl(), site.getName(), errors[3]);
-            if (getCheckSite(site.getUrl())) {
+            if (getCheckInternet(site.getUrl())) {
                 new Thread(() -> {
+                    System.out.println(Thread.currentThread().getName());
                     threads.add(Thread.currentThread());
                     synchronized (siteRepository) {
                         siteRepository.save(siteDB);
                     }
-                    LinksSait linksSait = new LinksSait(site.getUrl());
+                    IndexingSite linksSait = new IndexingSite(site.getUrl(), siteDB, pageRepository, lemmaRepository);
                     HashSet<String> checkLinks = new HashSet<>();
+
                     HashSet<String> links = new ForkJoinPool()
                             .invoke(new RecursiveTaskMapSait(linksSait, checkLinks));
-                    System.out.println("Выполнено "+ Thread.currentThread().getName());
-                    System.out.println(links);
-                    savePagesLemmaIndex(links, siteDB);
+                    System.out.println(Thread.currentThread().getName() + " количество ссылок " + links.size());
 
                     if (siteRepository.findById(siteDB.getId()).get().getStatus() != StatusSait.FAILED) {
                         siteDB.setStatusTime(LocalDateTime.now());
@@ -146,25 +140,47 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     @Override
     public IndexResponse getStopIndexing() {
+
+        System.out.println("Стоп индексация");
         IndexResponse response = new IndexResponse();
         response.setResult(true);
         response.setError("");
         for (Thread thread : threads) {
-            try {
-                thread.interrupt();
-            } catch (Exception ex) {
-                System.out.println(ex.getMessage());
-            }
+            thread.interrupt();
+            System.out.println(thread.getName());
         }
-        siteRepository.findAll().forEach(el -> {
-            el.setStatusTime(LocalDateTime.now());
-            el.setStatus(StatusSait.FAILED);
-            el.setLastError("Остановлено пользователем");
-            siteRepository.save(el);
-        });
+        threads.clear();
+        synchronized (siteRepository) {
+            siteRepository.findAll().forEach(el -> {
+                el.setStatusTime(LocalDateTime.now());
+                el.setStatus(StatusSait.FAILED);
+                el.setLastError("Остановлено пользователем");
+                siteRepository.save(el);
+            });
+        }
+        System.out.println("Отработал");
         return response;
     }
 
+
+    private boolean getCheckInternet(String siteUrl) {
+        boolean checkInternet = true;
+        try {
+            URL url = new URL(siteUrl);
+            URLConnection connection = url.openConnection();
+            connection.connect();
+        } catch (Exception ex) {
+            checkInternet = false;
+            return checkInternet;
+        }
+        return checkInternet;
+    }
+
+    private synchronized void deleteAllDB() {
+        siteRepository.deleteAll();
+        pageRepository.deleteAll();
+        lemmaRepository.deleteAll();
+    }
 
     private Page mapToPage(SiteDB sait, int code, String path, String content) {
         Page page = new Page();
@@ -185,63 +201,11 @@ public class StatisticsServiceImpl implements StatisticsService {
         return site;
     }
 
-    private List <Lemma> mapToLemma(SiteDB site, Page page) throws IOException {
-        List<Lemma> lemmaList = new ArrayList<>();
-        HashMapLemma lemmas = new HashMapLemma();
-        HashMap<String, Integer> mapLemmas = lemmas.getMapLemmas(page.getContent());
-        Set<String> keyMap = mapLemmas.keySet();
-        keyMap.forEach(el ->{
-            Lemma lemma = new Lemma();
-            lemma.setLemma(el);
-            lemma.setSite(site);
-            lemma.setFrequency(mapLemmas.get(el));
-            lemmaList.add(lemma);
-        });
-        return lemmaList;
+    private Lemma mapToLemma(SiteDB site, String lemmaWord) {
+        Lemma lemma = new Lemma();
+        lemma.setSite(site);
+        lemma.setLemma(lemmaWord);
+        lemma.setFrequency(1);
+        return lemma;
     }
-
-    private synchronized void savePagesLemmaIndex(HashSet<String> links, SiteDB siteDB) {
-//        List<Page> pagesList = new ArrayList<>();
-        List<Lemma> lemmas = lemmaRepository.findAll();
-        List<String> lemmaWord = new ArrayList<>();
-        for (Lemma lem : lemmas){
-            lemmaWord.add(lem.getLemma());
-        }
-        for (String link : links) {
-            Page page;
-            try {
-                Document document = Jsoup.connect(siteDB.getUrl() + link).get();
-                page = mapToPage(siteDB, 200, link, document.toString());
-                pageRepository.save(page);
-                List<Lemma> lemmaList = mapToLemma(siteDB, page);
-                for (Lemma lemma : lemmaList){
-                    if (!lemmaWord.contains(lemma.getLemma())){
-                        lemmaRepository.save(lemma);
-                    } else {
-                    }
-                }
-//                pagesList.add(page);
-//                if (pagesList.size() > 50) {
-//                    pageRepository.saveAll(pagesList);
-//                    pagesList.clear();
-//                }
-            } catch (Exception ex) {
-            }
-        }
-//        pageRepository.saveAll(pagesList);
-    }
-
-    private boolean getCheckSite(String siteUrl) {
-        boolean internet = true;
-        try {
-            URL url = new URL(siteUrl);
-            URLConnection connection = url.openConnection();
-            connection.connect();
-        } catch (Exception ex) {
-            internet = false;
-            return internet;
-        }
-        return internet;
-    }
-
 }

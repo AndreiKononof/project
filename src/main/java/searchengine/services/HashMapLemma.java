@@ -11,12 +11,12 @@ import java.util.List;
 
 public class HashMapLemma {
 
+    LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
 
-    public HashMapLemma(){
+    public HashMapLemma() throws IOException {
     }
 
     public HashMap<String, Integer> getMapLemmas(String text) throws IOException {
-        LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
         HashMap<String, Integer> lemmas = new HashMap<>();
         String regex = "[.,:;]";
         String regexRussLang = "[^а-яА-Я]";
@@ -45,7 +45,7 @@ public class HashMapLemma {
     }
 
     private boolean isParticles(String word) throws IOException {
-        LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
+
         List<String> wordsMorph = luceneMorphology.getMorphInfo(word.toLowerCase());
         List<String> particles = new ArrayList<>();
         particles.add("МЕЖД");

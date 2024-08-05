@@ -24,8 +24,10 @@ indexing-settings:
 #      name: Лента.ру
 #    - url: https://www.skillbox.ru
 #      name: Skillbox.ru
-    - url: https://sendel.ru
-      name: sendel.ru
+#    - url: https://sendel.ru
+#      name: sendel.ru
+    - url: http://ispu.ru
+      name: ИГЭУ
 #    - url: https://www.stmwater.rud
 #      name: Доставка Воды
 #    - url: https://www.playback.ru

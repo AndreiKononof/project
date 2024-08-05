@@ -69,8 +69,8 @@
                 <constraints nullable="false"/>
             </column>
         </createTable>
-        <createIndex tableName="page" indexName="index_path" >
-            <column name="path"/>
-        </createIndex>
+<!--        <createIndex tableName="page" indexName="index_path" >-->
+<!--            <column name="path"/>-->
+<!--        </createIndex>-->
     </changeSet>
 </databaseChangeLog>

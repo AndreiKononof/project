@@ -13,8 +13,8 @@ public class Index {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @Column(name = "page_id")
-    private int pageID;
+    @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
+    private Page page;
 
     @Column(name = "lemma_id")
     private int lemmaId;
