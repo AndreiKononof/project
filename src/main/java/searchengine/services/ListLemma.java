@@ -5,19 +5,18 @@ import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
 
-public class HashMapLemma {
+public class ListLemma {
 
     LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
 
-    public HashMapLemma() throws IOException {
+    public ListLemma() throws IOException {
     }
 
-    public HashMap<String, Integer> getMapLemmas(String text) throws IOException {
-        HashMap<String, Integer> lemmas = new HashMap<>();
+    public List<String> getListLemmas(String text){
+        List<String> lemmas = new ArrayList<>();
         String regex = "[.,:;]";
         String regexRussLang = "[^а-яА-Я]";
         String[] words = text.toLowerCase().replaceAll(regex, "")
@@ -32,19 +31,12 @@ public class HashMapLemma {
                 continue;
             }
 
-            List<String> lemmasWord = luceneMorphology.getNormalForms(word.toLowerCase());
-            String normalForm = lemmasWord.get(0);
-
-            if (lemmas.containsKey(normalForm)) {
-                lemmas.put(normalForm, lemmas.get(normalForm) + 1);
-            } else {
-                lemmas.put(normalForm, 1);
-            }
+            lemmas.add(word);
         }
         return lemmas;
     }
 
-    private boolean isParticles(String word) throws IOException {
+    private boolean isParticles(String word){
 
         List<String> wordsMorph = luceneMorphology.getMorphInfo(word.toLowerCase());
         List<String> particles = new ArrayList<>();

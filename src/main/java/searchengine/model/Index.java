@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-@Table(name = "index")
+@Table(name = "index_site")
 @Entity
 @Getter
 @Setter
@@ -13,12 +13,17 @@ public class Index {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.LAZY)
+    @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Page page;
 
-    @Column(name = "lemma_id")
-    private int lemmaId;
+    @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Lemma lemma;
 
-    @Column(name = "rank")
+    @Column(name = "rank_values")
     private float rank;
+
+    @Override
+    public String toString() {
+        return page.getPath() +" "+ lemma.getLemma()+" "+ rank;
+    }
 }

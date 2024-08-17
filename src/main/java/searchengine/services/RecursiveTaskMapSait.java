@@ -21,10 +21,7 @@ public class RecursiveTaskMapSait extends RecursiveTask<HashSet<String>> {
             if (!checkLinks.contains(link)) {
                 RecursiveTaskMapSait task = new RecursiveTaskMapSait(
                         new IndexingSite(
-                                mapSait.getUrl() + link,
-                                mapSait.getSite(),
-                                mapSait.getPageRepository(),
-                                mapSait.getLemmaRepository()),
+                                mapSait.getUrl() + link),
                         checkLinks);
                 task.fork();
                 taskList.add(task);

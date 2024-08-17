@@ -1,19 +1,19 @@
 package searchengine.services;
 
 import lombok.RequiredArgsConstructor;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 import org.springframework.stereotype.Service;
 import searchengine.config.Site;
 import searchengine.config.SitesList;
 import searchengine.dto.statistics.*;
-import searchengine.model.Lemma;
-import searchengine.model.Page;
-import searchengine.model.SiteDB;
-import searchengine.model.StatusSait;
+import searchengine.model.*;
 import searchengine.repositories.IndexRepository;
 import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
+import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.time.LocalDateTime;
@@ -29,14 +29,16 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final PageRepository pageRepository;
     private final LemmaRepository lemmaRepository;
     private final IndexRepository indexRepository;
+    private boolean indexingStop;
 
-    private volatile List<Thread> threads = new ArrayList<>();
     private final SitesList sites;
+    private final List<Thread> threads;
     private final String[] errors = {
             "Ошибка индексации: главная страница сайта не доступна",
             "Ошибка индексации: сайт не доступен",
             "Отсутствует подключение к интернету",
-            "Ок"
+            "Ок",
+            "Индексация не закончена"
     };
 
     @Override
@@ -53,20 +55,10 @@ public class StatisticsServiceImpl implements StatisticsService {
             DetailedStatisticsItem item = new DetailedStatisticsItem();
             item.setName(siteDB.getName());
             item.setUrl(siteDB.getUrl());
-            List<Page> pageList = pageRepository.findAll();
-            int pages = 0;
-            for (Page page : pageList) {
-                if (page.getSite().getId() == siteDB.getId()) {
-                    pages++;
-                }
-            }
-            List<Lemma> lemmaList = lemmaRepository.findAll();
-            int lemmas = 0;
-            for (Lemma lemma : lemmaList) {
-                if (lemma.getSite().getId() == siteDB.getId()) {
-                    lemmas++;
-                }
-            }
+            List<String> pageList = pageRepository.findAllPath(siteDB);
+            int pages = pageList.size();
+            List<String> lemmaList = lemmaRepository.findAllLemmas(siteDB);
+            int lemmas = lemmaList.size();
             item.setPages(pages);
             item.setLemmas(lemmas);
             item.setStatus(siteDB.getStatus().toString());
@@ -88,80 +80,101 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     @Override
     public IndexResponse getStartIndexing() {
+        indexingStop = false;
+        IndexResponse response = new IndexResponse();
+        response.setResult(true);
+
+        if (getIndexingNow()) {
+            response.setResult(false);
+            response.setError(errors[4]);
+            return response;
+        }
 
         deleteAllDB();
 
-        IndexResponse response = new IndexResponse();
-        response.setResult(true);
-        response.setError(errors[3]);
-
-        if (!threads.isEmpty()) {
-            for (Thread thread : threads) {
-                thread.interrupt();
-            }
-        }
-
         List<Site> sitesList = sites.getSites();
         for (Site site : sitesList) {
-            SiteDB siteDB = mapToSaitDB(StatusSait.INDEXING, site.getUrl(), site.getName(), errors[3]);
-            if (getCheckInternet(site.getUrl())) {
-                new Thread(() -> {
-                    System.out.println(Thread.currentThread().getName());
-                    threads.add(Thread.currentThread());
+            if (indexingStop) {
+                break;
+            }
+            new Thread(() -> {
+
+                threads.add(Thread.currentThread());
+                SiteDB siteDB = mapToSaitDB(StatusSait.INDEXING, site.getUrl(), site.getName(), errors[3]);
+
+                if (getCheckInternet(site.getUrl())) {
+
+                    synchronized (siteRepository) {
+                        siteRepository.saveAndFlush(siteDB);
+                    }
+
+                    HashSet<String> checkLinks = new HashSet<>();
+                    HashSet<String> linksSait = new ForkJoinPool()
+                            .invoke(new RecursiveTaskMapSait(new IndexingSite(siteDB.getUrl()), checkLinks));
+                    linksSait.add("/");
+
+                    for (String link : linksSait) {
+                        if (indexingStop) {
+                            break;
+                        }
+                        try {
+                            Document doc = Jsoup.connect(site.getUrl() + link)
+                                    .userAgent("HeliontSearchBot")
+                                    .referrer("http://google.com")
+                                    .get();
+                            Page page = mapToPage(siteDB, 200, link, doc.toString());
+                            synchronized (pageRepository) {
+                                pageRepository.saveAndFlush(page);
+                            }
+
+                            saveLemma(siteDB, page);
+
+                        } catch (Exception ex) {
+                            System.out.println(ex);
+                        }
+                    }
+                } else {
+                    siteDB.setLastError(errors[0]);
+                    siteDB.setStatusTime(LocalDateTime.now());
+                    siteDB.setStatus(StatusSait.FAILED);
                     synchronized (siteRepository) {
                         siteRepository.save(siteDB);
                     }
-                    IndexingSite linksSait = new IndexingSite(site.getUrl(), siteDB, pageRepository, lemmaRepository);
-                    HashSet<String> checkLinks = new HashSet<>();
-
-                    HashSet<String> links = new ForkJoinPool()
-                            .invoke(new RecursiveTaskMapSait(linksSait, checkLinks));
-                    System.out.println(Thread.currentThread().getName() + " количество ссылок " + links.size());
-
-                    if (siteRepository.findById(siteDB.getId()).get().getStatus() != StatusSait.FAILED) {
-                        siteDB.setStatusTime(LocalDateTime.now());
-                        siteDB.setStatus(StatusSait.INDEXED);
-                        synchronized (siteRepository) {
-                            siteRepository.save(siteDB);
-                        }
-                    }
-                }).start();
-            } else {
-                siteDB.setLastError(errors[0]);
-                siteDB.setStatusTime(LocalDateTime.now());
-                siteDB.setStatus(StatusSait.FAILED);
-                synchronized (siteRepository) {
-                    siteRepository.save(siteDB);
                 }
-            }
+                if (siteRepository.findById(siteDB.getId()).get().getStatus().equals(StatusSait.INDEXING)) {
+                    siteDB.setStatusTime(LocalDateTime.now());
+                    siteDB.setStatus(StatusSait.INDEXED);
+                    synchronized (siteRepository) {
+                        siteRepository.saveAndFlush(siteDB);
+                    }
+                }
+            }).start();
         }
         return response;
     }
 
     @Override
     public IndexResponse getStopIndexing() {
-
-        System.out.println("Стоп индексация");
         IndexResponse response = new IndexResponse();
         response.setResult(true);
-        response.setError("");
+
+        indexingStop = true;
         for (Thread thread : threads) {
             thread.interrupt();
-            System.out.println(thread.getName());
         }
         threads.clear();
+
         synchronized (siteRepository) {
             siteRepository.findAll().forEach(el -> {
-                el.setStatusTime(LocalDateTime.now());
-                el.setStatus(StatusSait.FAILED);
                 el.setLastError("Остановлено пользователем");
+                el.setStatus(StatusSait.FAILED);
+                el.setStatusTime(LocalDateTime.now());
                 siteRepository.save(el);
             });
         }
-        System.out.println("Отработал");
+
         return response;
     }
-
 
     private boolean getCheckInternet(String siteUrl) {
         boolean checkInternet = true;
@@ -176,19 +189,22 @@ public class StatisticsServiceImpl implements StatisticsService {
         return checkInternet;
     }
 
-    private synchronized void deleteAllDB() {
+    private void deleteAllDB() {
         siteRepository.deleteAll();
         pageRepository.deleteAll();
         lemmaRepository.deleteAll();
     }
 
-    private Page mapToPage(SiteDB sait, int code, String path, String content) {
-        Page page = new Page();
-        page.setSite(sait);
-        page.setCode(code);
-        page.setPath(path);
-        page.setContent(content);
-        return page;
+    private synchronized boolean getIndexingNow() {
+        boolean indexingNow = false;
+        List<SiteDB> siteDBS = siteRepository.findAll();
+        for (SiteDB site : siteDBS) {
+            if (site.getStatus().equals(StatusSait.INDEXING)) {
+                indexingNow = true;
+                break;
+            }
+        }
+        return indexingNow;
     }
 
     private SiteDB mapToSaitDB(StatusSait status, String url, String name, String error) {
@@ -201,11 +217,74 @@ public class StatisticsServiceImpl implements StatisticsService {
         return site;
     }
 
+    private Page mapToPage(SiteDB sait, int code, String path, String content) {
+        Page page = new Page();
+        page.setSite(sait);
+        page.setCode(code);
+        page.setPath(path);
+        page.setContent(content);
+        return page;
+    }
+
     private Lemma mapToLemma(SiteDB site, String lemmaWord) {
         Lemma lemma = new Lemma();
         lemma.setSite(site);
         lemma.setLemma(lemmaWord);
         lemma.setFrequency(1);
         return lemma;
+    }
+
+    private Index mapToIndex(Page page, Lemma lemma) {
+
+        Index index = new Index();
+        index.setPage(page);
+        index.setLemma(lemma);
+        index.setRank(1);
+        return index;
+    }
+
+    private synchronized void saveIndex(Page page, Lemma lemma) {
+
+        if (indexRepository.findByPageAndLemma(page,lemma).isPresent()){
+            Index index1 = indexRepository.findByPageAndLemma(page,lemma).get();
+            index1.setRank(index1.getRank()+1);
+            indexRepository.save(index1);
+        }else {
+            Index index = mapToIndex(page,lemma);
+            indexRepository.save(index);
+        }
+    }
+
+    private List<Lemma> getLemmaListOnThePage(SiteDB site, Page page) throws IOException {
+        List<Lemma> lemmaList = new ArrayList<>();
+        ListLemma listLemma = new ListLemma();
+        List<String> lemmaWordList = listLemma.getListLemmas(page.getContent());
+        for (String lemmaWord : lemmaWordList) {
+            Lemma lemma = mapToLemma(site, lemmaWord);
+            lemmaList.add(lemma);
+        }
+        return lemmaList;
+    }
+
+    private synchronized void saveLemma(SiteDB site, Page page) throws IOException {
+        List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
+        List<Lemma> lemmaOnPage = new ArrayList<>();
+        Set<String> lemmaWords = new HashSet<>();
+        for (Lemma lemma : lemmaList) {
+            if (!lemmaWords.contains(lemma.getLemma())) {
+                lemmaOnPage.add(lemma);
+                lemmaWords.add(lemma.getLemma());
+            }
+        }
+        for (Lemma lemma : lemmaOnPage) {
+            Optional<Integer> idLemma = lemmaRepository.findIdLemmaWithSite(lemma.getLemma(), site);
+            if (idLemma.isPresent()) {
+                Optional<Lemma> lemmaInBD = lemmaRepository.findById(idLemma.get());
+                lemmaInBD.get().setFrequency(lemmaInBD.get().getFrequency() + 1);
+                lemmaRepository.save(lemmaInBD.get());
+            } else {
+                lemmaRepository.save(lemma);
+            }
+        }
     }
 }

@@ -55,7 +55,7 @@
                 <constraints nullable="false"/>
             </column>
         </createTable>
-        <createTable tableName="index">
+        <createTable tableName="index_site">
             <column name="id" type="int" autoIncrement="true">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
@@ -65,7 +65,7 @@
             <column name="lemma_id" type="int">
                 <constraints nullable="false"/>
             </column>
-            <column name="rank" type="FLOAT">
+            <column name="rank_values" type="FLOAT">
                 <constraints nullable="false"/>
             </column>
         </createTable>
