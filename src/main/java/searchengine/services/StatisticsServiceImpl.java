@@ -13,7 +13,7 @@ import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
-import java.io.IOException;
+import java.io.*;
 import java.net.URL;
 import java.net.URLConnection;
 import java.time.LocalDateTime;
@@ -80,6 +80,7 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     @Override
     public IndexResponse getStartIndexing() {
+        long start = System.currentTimeMillis();
         indexingStop = false;
         IndexResponse response = new IndexResponse();
         response.setResult(true);
@@ -128,6 +129,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                             }
 
                             saveLemma(siteDB, page);
+                            saveIndex(siteDB, page);
 
                         } catch (Exception ex) {
                             System.out.println(ex);
@@ -148,6 +150,12 @@ public class StatisticsServiceImpl implements StatisticsService {
                         siteRepository.saveAndFlush(siteDB);
                     }
                 }
+                try {
+                    PrintWriter writer = new PrintWriter("data/speedTest.txt");
+                    writer.write((System.currentTimeMillis() - start) /1000 + " Время отработки программы " + site.getName());
+                    writer.flush();
+                    writer.close();
+                } catch (Exception ignored){}
             }).start();
         }
         return response;
@@ -243,15 +251,19 @@ public class StatisticsServiceImpl implements StatisticsService {
         return index;
     }
 
-    private synchronized void saveIndex(Page page, Lemma lemma) {
-
-        if (indexRepository.findByPageAndLemma(page,lemma).isPresent()){
-            Index index1 = indexRepository.findByPageAndLemma(page,lemma).get();
-            index1.setRank(index1.getRank()+1);
-            indexRepository.save(index1);
-        }else {
-            Index index = mapToIndex(page,lemma);
-            indexRepository.save(index);
+    private synchronized void saveIndex(SiteDB site, Page page) throws IOException {
+        List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
+        for (Lemma lemma : lemmaList) {
+            Lemma lemmaDB = lemmaRepository.findByLemma(lemma.getLemma()).get(0);
+            Page pageDB = pageRepository.findById(page.getId()).get();
+            if (indexRepository.findByPageAndLemma(pageDB, lemmaDB).isPresent()) {
+                Index index = indexRepository.findByPageAndLemma(pageDB, lemmaDB).get();
+                index.setRank(index.getRank() + 1);
+                indexRepository.save(index);
+            } else {
+                Index index = mapToIndex(pageDB, lemmaDB);
+               indexRepository.save(index);
+            }
         }
     }
 
@@ -268,6 +280,7 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     private synchronized void saveLemma(SiteDB site, Page page) throws IOException {
         List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
+        List<Lemma> cashLemma = new ArrayList<>();
         List<Lemma> lemmaOnPage = new ArrayList<>();
         Set<String> lemmaWords = new HashSet<>();
         for (Lemma lemma : lemmaList) {
@@ -281,10 +294,11 @@ public class StatisticsServiceImpl implements StatisticsService {
             if (idLemma.isPresent()) {
                 Optional<Lemma> lemmaInBD = lemmaRepository.findById(idLemma.get());
                 lemmaInBD.get().setFrequency(lemmaInBD.get().getFrequency() + 1);
-                lemmaRepository.save(lemmaInBD.get());
+                cashLemma.add(lemmaInBD.get());
             } else {
-                lemmaRepository.save(lemma);
+                cashLemma.add(lemma);
             }
         }
+        lemmaRepository.saveAll(cashLemma);
     }
 }

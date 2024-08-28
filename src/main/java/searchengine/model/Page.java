@@ -24,4 +24,9 @@ public class Page {
 
     @Column(name = "content", columnDefinition = "MEDIUMTEXT")
     private String content;
+
+    @Override
+    public String toString() {
+        return id + " " + path+ " Id site " + site.getId();
+    }
 }

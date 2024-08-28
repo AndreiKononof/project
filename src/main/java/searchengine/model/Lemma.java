@@ -21,4 +21,9 @@ public class Lemma {
 
     @Column(name = "frequency")
     private int frequency;
+
+    @Override
+    public String toString() {
+        return id+" "+lemma;
+    }
 }

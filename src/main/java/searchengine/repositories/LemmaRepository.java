@@ -19,4 +19,8 @@ public interface LemmaRepository extends JpaRepository<Lemma, Integer> {
     @Query (value = "SELECT id From Lemma Where lemma LIKE :word and site =:site ")
     Optional<Integer> findIdLemmaWithSite(@Param("word") String lemmaNormForm, @Param("site") SiteDB site);
 
+    @Query (value = "Select lemma From Lemma Where site=:site")
+    List<String> findBySite (@Param("site") SiteDB site);
+
+    List<Lemma> findByLemma (String lemma);
 }
