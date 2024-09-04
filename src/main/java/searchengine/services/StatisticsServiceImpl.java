@@ -111,30 +111,35 @@ public class StatisticsServiceImpl implements StatisticsService {
 
                     HashSet<String> checkLinks = new HashSet<>();
                     HashSet<String> linksSait = new ForkJoinPool()
-                            .invoke(new RecursiveTaskMapSait(new IndexingSite(siteDB.getUrl()), checkLinks));
-                    linksSait.add("/");
-
-                    for (String link : linksSait) {
-                        if (indexingStop) {
-                            break;
-                        }
-                        try {
-                            Document doc = Jsoup.connect(site.getUrl() + link)
-                                    .userAgent("HeliontSearchBot")
-                                    .referrer("http://google.com")
-                                    .get();
-                            Page page = mapToPage(siteDB, 200, link, doc.toString());
-                            synchronized (pageRepository) {
-                                pageRepository.saveAndFlush(page);
-                            }
-
-                            saveLemma(siteDB, page);
-                            saveIndex(siteDB, page);
-
-                        } catch (Exception ex) {
-                            System.out.println(ex);
-                        }
-                    }
+                            .invoke(new RecursiveTaskMapSait(new IndexingSite(siteDB.getUrl(),
+                                    siteDB,
+                                    pageRepository,
+                                    indexRepository,
+                                    lemmaRepository), checkLinks));
+                    System.out.println(Thread.currentThread().getName()+linksSait.size());
+//                    linksSait.add("/");
+//
+//                    for (String link : linksSait) {
+//                        if (indexingStop) {
+//                            break;
+//                        }
+//                        try {
+//                            Document doc = Jsoup.connect(site.getUrl() + link)
+//                                    .userAgent("HeliontSearchBot")
+//                                    .referrer("http://google.com")
+//                                    .get();
+//                            Page page = mapToPage(siteDB, 200, link, doc.toString());
+//                            synchronized (pageRepository) {
+//                                pageRepository.saveAndFlush(page);
+//                            }
+//
+//                            saveLemma(siteDB, page);
+//                            saveIndex(siteDB, page);
+//
+//                        } catch (Exception ex) {
+//                            System.out.println(ex);
+//                        }
+//                    }
                 } else {
                     siteDB.setLastError(errors[0]);
                     siteDB.setStatusTime(LocalDateTime.now());
@@ -152,7 +157,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 }
                 try {
                     PrintWriter writer = new PrintWriter("data/speedTest.txt");
-                    writer.write((System.currentTimeMillis() - start) /1000 + " Время отработки программы " + site.getName());
+                    writer.write((System.currentTimeMillis() - start) + "милис Время отработки программы " + site.getName());
                     writer.flush();
                     writer.close();
                 } catch (Exception ignored){}

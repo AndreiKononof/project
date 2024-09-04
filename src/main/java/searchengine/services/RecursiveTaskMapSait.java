@@ -2,6 +2,7 @@ package searchengine.services;
 
 
 import lombok.AllArgsConstructor;
+import searchengine.model.SiteDB;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -12,7 +13,6 @@ import java.util.concurrent.RecursiveTask;
 public class RecursiveTaskMapSait extends RecursiveTask<HashSet<String>> {
     IndexingSite mapSait;
     HashSet<String> checkLinks;
-
     @Override
     protected HashSet<String> compute() {
         List<RecursiveTaskMapSait> taskList = new ArrayList<>();
@@ -21,7 +21,10 @@ public class RecursiveTaskMapSait extends RecursiveTask<HashSet<String>> {
             if (!checkLinks.contains(link)) {
                 RecursiveTaskMapSait task = new RecursiveTaskMapSait(
                         new IndexingSite(
-                                mapSait.getUrl() + link),
+                                mapSait.getUrl() + link, mapSait.getSiteDB(),
+                                mapSait.getPageRepository(),
+                                mapSait.getIndexRepository(),
+                                mapSait.getLemmaRepository()),
                         checkLinks);
                 task.fork();
                 taskList.add(task);
