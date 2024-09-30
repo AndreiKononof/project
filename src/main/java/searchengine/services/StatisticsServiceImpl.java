@@ -13,7 +13,7 @@ import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.time.LocalDateTime;
@@ -38,7 +38,11 @@ public class StatisticsServiceImpl implements StatisticsService {
             "Ошибка индексации: сайт не доступен",
             "Отсутствует подключение к интернету",
             "Ок",
-            "Индексация не закончена"
+            "Индексация не закончена",
+            "Данная страница находится за пределами сайтов," +
+                    "указанных в конфигурационном файле",
+            "Запущена индексация сайта",
+            "Запущена индексация страницы"
     };
 
     @Override
@@ -80,7 +84,6 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     @Override
     public IndexResponse getStartIndexing() {
-        long start = System.currentTimeMillis();
         indexingStop = false;
         IndexResponse response = new IndexResponse();
         response.setResult(true);
@@ -99,68 +102,8 @@ public class StatisticsServiceImpl implements StatisticsService {
                 break;
             }
             new Thread(() -> {
-
                 threads.add(Thread.currentThread());
-                SiteDB siteDB = mapToSaitDB(StatusSait.INDEXING, site.getUrl(), site.getName(), errors[3]);
-
-                if (getCheckInternet(site.getUrl())) {
-
-                    synchronized (siteRepository) {
-                        siteRepository.saveAndFlush(siteDB);
-                    }
-
-                    HashSet<String> checkLinks = new HashSet<>();
-                    HashSet<String> linksSait = new ForkJoinPool()
-                            .invoke(new RecursiveTaskMapSait(new IndexingSite(siteDB.getUrl(),
-                                    siteDB,
-                                    pageRepository,
-                                    indexRepository,
-                                    lemmaRepository), checkLinks));
-                    System.out.println(Thread.currentThread().getName()+linksSait.size());
-//                    linksSait.add("/");
-//
-//                    for (String link : linksSait) {
-//                        if (indexingStop) {
-//                            break;
-//                        }
-//                        try {
-//                            Document doc = Jsoup.connect(site.getUrl() + link)
-//                                    .userAgent("HeliontSearchBot")
-//                                    .referrer("http://google.com")
-//                                    .get();
-//                            Page page = mapToPage(siteDB, 200, link, doc.toString());
-//                            synchronized (pageRepository) {
-//                                pageRepository.saveAndFlush(page);
-//                            }
-//
-//                            saveLemma(siteDB, page);
-//                            saveIndex(siteDB, page);
-//
-//                        } catch (Exception ex) {
-//                            System.out.println(ex);
-//                        }
-//                    }
-                } else {
-                    siteDB.setLastError(errors[0]);
-                    siteDB.setStatusTime(LocalDateTime.now());
-                    siteDB.setStatus(StatusSait.FAILED);
-                    synchronized (siteRepository) {
-                        siteRepository.save(siteDB);
-                    }
-                }
-                if (siteRepository.findById(siteDB.getId()).get().getStatus().equals(StatusSait.INDEXING)) {
-                    siteDB.setStatusTime(LocalDateTime.now());
-                    siteDB.setStatus(StatusSait.INDEXED);
-                    synchronized (siteRepository) {
-                        siteRepository.saveAndFlush(siteDB);
-                    }
-                }
-                try {
-                    PrintWriter writer = new PrintWriter("data/speedTest.txt");
-                    writer.write((System.currentTimeMillis() - start) + "милис Время отработки программы " + site.getName());
-                    writer.flush();
-                    writer.close();
-                } catch (Exception ignored){}
+                indexingSait(site);
             }).start();
         }
         return response;
@@ -187,6 +130,147 @@ public class StatisticsServiceImpl implements StatisticsService {
         }
 
         return response;
+    }
+
+    @Override
+    public IndexResponse getIndexSait(String url) {
+        url = url.toLowerCase();
+        String saitUrl;
+        String http = "http://";
+        String urlHttp = "";
+        String urlHttps = "";
+        String pageString;
+        String https = "https://";
+        IndexResponse response = new IndexResponse();
+        response.setResult(false);
+        response.setError(errors[5]);
+
+        try {
+            pageString = url.substring(url.indexOf("/", 9));
+            saitUrl = url.substring(0, url.indexOf("/", 9));
+        } catch (Exception e) {
+            pageString = null;
+            saitUrl = url;
+        }
+
+        if (!url.startsWith("http")) {
+            urlHttp = http.concat(saitUrl);
+            urlHttps = https.concat(saitUrl);
+        }
+
+        List<String> urlList = new ArrayList<>();
+        sites.getSites().forEach(el -> urlList.add(el.getUrl()));
+        sites.getSites().forEach(el -> System.out.println(el.getUrl()));
+        System.out.println(urlList.contains(urlHttp));
+        System.out.println(urlList.contains(urlHttps));
+        System.out.println(urlHttp + " "+urlHttps);
+        if (!saitUrl.startsWith("http")) {
+            if (urlList.contains(urlHttp)) {
+                saitUrl = urlHttp;
+            } else if (urlList.contains(urlHttps)) {
+                saitUrl = urlHttps;
+            } else {
+                return response;
+            }
+        } else if (!urlList.contains(saitUrl)){
+            return response;
+        }
+        System.out.println(saitUrl);
+        System.out.println(pageString);
+
+        List<Integer> siteId = siteRepository.findByUrl(saitUrl);
+        SiteDB siteDB;
+        try {
+            siteDB = siteRepository.findById(siteId.get(0)).get();
+            System.out.println(siteDB.getName());
+            Site site = new Site();
+            site.setUrl(siteDB.getUrl());
+            site.setName(siteDB.getName());
+
+            if (pageString == null) {
+                System.out.println("нет Страницы");
+                siteRepository.deleteById(siteId.get(0));
+                indexingSait(site);
+                response.setError(errors[6]);
+                response.setResult(true);
+            } else {
+                System.out.println("Со страницей");
+                Document doc = Jsoup.connect(saitUrl+pageString)
+                        .userAgent("HelionSearchEngine").referrer("google.com").get();
+                Page page = mapToPage(siteDB,200,pageString,doc.toString());
+                pageRepository.save(page);
+                saveLemma(siteDB,page);
+                saveIndex(siteDB,page);
+                response.setResult(true);
+                response.setError(errors[7]);
+            }
+        } catch (Exception ignored) {
+        }
+        return response;
+    }
+
+    private void indexingSait(Site site) {
+        SiteDB siteDB = mapToSaitDB(StatusSait.INDEXING, site.getUrl(), site.getName(), errors[3]);
+
+        if (getCheckInternet(site.getUrl())) {
+
+            synchronized (siteRepository) {
+                siteRepository.saveAndFlush(siteDB);
+            }
+
+            HashSet<String> checkLinks = new HashSet<>();
+            HashSet<String> linksSait = new ForkJoinPool()
+                    .invoke(new RecursiveTaskMapSait(new IndexingSite(siteDB.getUrl()), checkLinks));
+            System.out.println(Thread.currentThread().getName() + " " + linksSait.size());
+            HashSet<Page> pages = new HashSet<>();
+            for (String link : linksSait) {
+                try {
+                    Document doc = Jsoup.connect(siteDB.getUrl() + link).userAgent("HelionSearchEngine").referrer("google.com").get();
+                    Page page = mapToPage(siteDB, 200, link, doc.toString());
+                    pages.add(page);
+                    if (pages.size() > 100) {
+                        synchronized (pageRepository) {
+                            pageRepository.saveAll(pages);
+                        }
+                        pages.clear();
+                    }
+                    Thread.sleep(50);
+                } catch (Exception ignored) {
+
+                }
+            }
+            synchronized (pageRepository) {
+                pageRepository.saveAll(pages);
+            }
+            List<Integer> pageListId = pageRepository.findAllId(siteDB);
+            for (Integer pageId : pageListId) {
+                if (indexingStop) {
+                    break;
+                }
+                try {
+                    Page page = pageRepository.findById(pageId).get();
+                    saveLemma(siteDB, page);
+                    saveIndex(siteDB, page);
+
+                } catch (Exception ex) {
+                    System.out.println(ex);
+                }
+            }
+        } else {
+            siteDB.setLastError(errors[0]);
+            siteDB.setStatusTime(LocalDateTime.now());
+            siteDB.setStatus(StatusSait.FAILED);
+            synchronized (siteRepository) {
+                siteRepository.save(siteDB);
+            }
+        }
+        if (siteRepository.findById(siteDB.getId()).get().getStatus().equals(StatusSait.INDEXING)) {
+            siteDB.setStatusTime(LocalDateTime.now());
+            siteDB.setStatus(StatusSait.INDEXED);
+            synchronized (siteRepository) {
+                siteRepository.saveAndFlush(siteDB);
+            }
+        }
     }
 
     private boolean getCheckInternet(String siteUrl) {
@@ -258,18 +342,23 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     private synchronized void saveIndex(SiteDB site, Page page) throws IOException {
         List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
+        List<Index> indexList = new ArrayList<>();
+        List<String> indexLemma = new ArrayList<>();
         for (Lemma lemma : lemmaList) {
             Lemma lemmaDB = lemmaRepository.findByLemma(lemma.getLemma()).get(0);
-            Page pageDB = pageRepository.findById(page.getId()).get();
-            if (indexRepository.findByPageAndLemma(pageDB, lemmaDB).isPresent()) {
-                Index index = indexRepository.findByPageAndLemma(pageDB, lemmaDB).get();
-                index.setRank(index.getRank() + 1);
-                indexRepository.save(index);
+            Index index = mapToIndex(page, lemmaDB);
+            if (indexLemma.contains(index.getLemma().getLemma())) {
+                indexList.forEach(el -> {
+                    if (el.getLemma().getLemma().equals(index.getLemma().getLemma())) {
+                        el.setRank(el.getRank() + 1);
+                    }
+                });
             } else {
-                Index index = mapToIndex(pageDB, lemmaDB);
-               indexRepository.save(index);
+                indexList.add(index);
+                indexLemma.add(index.getLemma().getLemma());
             }
         }
+        indexRepository.saveAllAndFlush(indexList);
     }
 
     private List<Lemma> getLemmaListOnThePage(SiteDB site, Page page) throws IOException {
@@ -304,6 +393,6 @@ public class StatisticsServiceImpl implements StatisticsService {
                 cashLemma.add(lemma);
             }
         }
-        lemmaRepository.saveAll(cashLemma);
+        lemmaRepository.saveAllAndFlush(cashLemma);
     }
 }

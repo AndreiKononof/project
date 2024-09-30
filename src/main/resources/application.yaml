@@ -16,7 +16,7 @@ spring:
   liquibase:
     change-log: classpath:db/change-log/db.changelog-master.xml
     enabled: true
-    drop-first: true
+    drop-first: false
 
 indexing-settings:
   sites:
@@ -26,13 +26,11 @@ indexing-settings:
 #      name: Skillbox.ru
     - url: https://sendel.ru
       name: sendel.ru
-#    - url: https://sendel.ru
-#      name: sendel.ru
 #    - url: http://ispu.ru
 #      name: ИГЭУ
-#    - url: https://www.stmwater.rud
+#    - url: https://www.stmwater.ru
 #      name: Доставка Воды
-#    - url: https://www.playback.ru
-#      name: PlayBack.Ru
+    - url: https://www.playback.ru
+      name: PlayBack.Ru
 #    - url: http://www.radiomv.ru
 #      name: radiomv.ru

@@ -2,7 +2,10 @@ package searchengine.services;
 
 
 import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import searchengine.model.SiteDB;
+import searchengine.repositories.PageRepository;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -20,12 +23,7 @@ public class RecursiveTaskMapSait extends RecursiveTask<HashSet<String>> {
         for (String link : links) {
             if (!checkLinks.contains(link)) {
                 RecursiveTaskMapSait task = new RecursiveTaskMapSait(
-                        new IndexingSite(
-                                mapSait.getUrl() + link, mapSait.getSiteDB(),
-                                mapSait.getPageRepository(),
-                                mapSait.getIndexRepository(),
-                                mapSait.getLemmaRepository()),
-                        checkLinks);
+                        new IndexingSite(mapSait.getUrl() + link), checkLinks);
                 task.fork();
                 taskList.add(task);
                 checkLinks.add(link);
