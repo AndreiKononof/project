@@ -221,7 +221,6 @@ public class StatisticsServiceImpl implements StatisticsService {
             HashSet<String> checkLinks = new HashSet<>();
             HashSet<String> linksSait = new ForkJoinPool()
                     .invoke(new RecursiveTaskMapSait(new IndexingSite(siteDB.getUrl()), checkLinks));
-            System.out.println(Thread.currentThread().getName() + " " + linksSait.size());
             HashSet<Page> pages = new HashSet<>();
             for (String link : linksSait) {
                 try {
@@ -252,8 +251,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                     saveLemma(siteDB, page);
                     saveIndex(siteDB, page);
 
-                } catch (Exception ex) {
-                    System.out.println(ex);
+                } catch (Exception ignored){
                 }
             }
         } else {
