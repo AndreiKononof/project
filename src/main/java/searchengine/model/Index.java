@@ -13,7 +13,7 @@ public class Index {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private int id;
 
-    @ManyToOne(cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.EAGER)
     private Page page;
 
     @ManyToOne(cascade = CascadeType.MERGE, fetch = FetchType.EAGER)

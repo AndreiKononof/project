@@ -1,5 +1,6 @@
 package searchengine.services;
 
+import searchengine.dto.statistics.DataResponse;
 import searchengine.dto.statistics.IndexResponse;
 import searchengine.dto.statistics.StatisticsResponse;
 
@@ -8,4 +9,5 @@ public interface StatisticsService {
     IndexResponse getStartIndexing();
     IndexResponse getStopIndexing();
     IndexResponse getIndexSait(String url);
+    DataResponse getSearch (String query, String site);
 }

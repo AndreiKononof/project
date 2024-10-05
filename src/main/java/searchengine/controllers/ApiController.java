@@ -3,6 +3,7 @@ package searchengine.controllers;
 import jakarta.persistence.criteria.CriteriaBuilder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import searchengine.dto.statistics.DataResponse;
 import searchengine.dto.statistics.IndexResponse;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.services.StatisticsService;
@@ -37,5 +38,10 @@ public class ApiController {
     @PostMapping("/indexPage")
     public ResponseEntity<IndexResponse> indexPage (@RequestParam String url){
         return ResponseEntity.ok(statisticsService.getIndexSait(url));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<DataResponse> search (@RequestParam String query, @RequestParam String site){
+        return ResponseEntity.ok(statisticsService.getSearch(query,site));
     }
 }

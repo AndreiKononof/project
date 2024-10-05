@@ -135,50 +135,87 @@ public class StatisticsServiceImpl implements StatisticsService {
     @Override
     public IndexResponse getIndexSait(String url) {
         url = url.toLowerCase();
-        String saitUrl;
+        url = url.replaceAll("\s","");
+        String siteUrl;
         String http = "http://";
         String urlHttp = "";
         String urlHttps = "";
         String pageString;
         String https = "https://";
+        List<String> urlList = new ArrayList<>();
+        sites.getSites().forEach(el -> urlList.add(el.getUrl()));
         IndexResponse response = new IndexResponse();
         response.setResult(false);
         response.setError(errors[5]);
 
+        boolean siteContains = false;
+        for(String urlSite : urlList){
+            if (urlSite.equals(url)) {
+                siteContains = true;
+                break;
+            }
+        }
+        System.out.println(siteContains);
+
+        if(siteContains){
+            List<Integer> siteId = siteRepository.findByUrl(url);
+            if(!siteId.isEmpty()) {
+                try {
+                    SiteDB siteDB = siteRepository.findById(siteId.get(0)).get();
+                    Site site = new Site();
+                    site.setUrl(siteDB.getUrl());
+                    site.setName(siteDB.getName());
+                    siteRepository.deleteById(siteId.get(0));
+                    indexingSait(site);
+                } catch (Exception ignored) {
+                    System.out.println(ignored);
+                }
+            } else {
+                String name = "";
+                Site site = new Site();
+                site.setUrl(url);
+                site.setName(name);
+                List<Site> siteList = sites.getSites();
+                for(Site siteConfig: siteList){
+                    if(siteConfig.getUrl().equals(site.getUrl())){
+                        site.setName(siteConfig.getName());
+                    }
+                }
+                indexingSait(site);
+            }
+            response.setResult(true);
+            response.setError(errors[6]);
+            return response;
+        }
+
         try {
             pageString = url.substring(url.indexOf("/", 9));
-            saitUrl = url.substring(0, url.indexOf("/", 9));
+            siteUrl = url.substring(0, url.indexOf("/", 9));
         } catch (Exception e) {
             pageString = null;
-            saitUrl = url;
+            siteUrl = url;
         }
 
         if (!url.startsWith("http")) {
-            urlHttp = http.concat(saitUrl);
-            urlHttps = https.concat(saitUrl);
+            urlHttp = http.concat(siteUrl);
+            urlHttps = https.concat(siteUrl);
         }
 
-        List<String> urlList = new ArrayList<>();
-        sites.getSites().forEach(el -> urlList.add(el.getUrl()));
-        sites.getSites().forEach(el -> System.out.println(el.getUrl()));
-        System.out.println(urlList.contains(urlHttp));
-        System.out.println(urlList.contains(urlHttps));
-        System.out.println(urlHttp + " "+urlHttps);
-        if (!saitUrl.startsWith("http")) {
+        if (!siteUrl.startsWith("http")) {
             if (urlList.contains(urlHttp)) {
-                saitUrl = urlHttp;
+                siteUrl = urlHttp;
             } else if (urlList.contains(urlHttps)) {
-                saitUrl = urlHttps;
+                siteUrl = urlHttps;
             } else {
                 return response;
             }
-        } else if (!urlList.contains(saitUrl)){
+        } else if (!urlList.contains(siteUrl)){
             return response;
         }
-        System.out.println(saitUrl);
+        System.out.println(siteUrl);
         System.out.println(pageString);
 
-        List<Integer> siteId = siteRepository.findByUrl(saitUrl);
+        List<Integer> siteId = siteRepository.findByUrl(siteUrl);
         SiteDB siteDB;
         try {
             siteDB = siteRepository.findById(siteId.get(0)).get();
@@ -195,7 +232,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 response.setResult(true);
             } else {
                 System.out.println("Со страницей");
-                Document doc = Jsoup.connect(saitUrl+pageString)
+                Document doc = Jsoup.connect(siteUrl+pageString)
                         .userAgent("HelionSearchEngine").referrer("google.com").get();
                 Page page = mapToPage(siteDB,200,pageString,doc.toString());
                 pageRepository.save(page);
@@ -209,11 +246,24 @@ public class StatisticsServiceImpl implements StatisticsService {
         return response;
     }
 
+    @Override
+    public DataResponse getSearch (String query, String site){
+        DataResponse dataResponse = new DataResponse();
+
+        if (site.equals("all")) {
+            dataResponse.setResult(true);
+            dataResponse.setCount(1);
+            Data data = new Data();
+            dataResponse.setData(data);
+        }
+
+        return dataResponse;
+    }
+
     private void indexingSait(Site site) {
         SiteDB siteDB = mapToSaitDB(StatusSait.INDEXING, site.getUrl(), site.getName(), errors[3]);
 
         if (getCheckInternet(site.getUrl())) {
-
             synchronized (siteRepository) {
                 siteRepository.saveAndFlush(siteDB);
             }
@@ -222,6 +272,7 @@ public class StatisticsServiceImpl implements StatisticsService {
             HashSet<String> linksSait = new ForkJoinPool()
                     .invoke(new RecursiveTaskMapSait(new IndexingSite(siteDB.getUrl()), checkLinks));
             HashSet<Page> pages = new HashSet<>();
+            System.out.println(linksSait.size());
             for (String link : linksSait) {
                 try {
                     Document doc = Jsoup.connect(siteDB.getUrl() + link).userAgent("HelionSearchEngine").referrer("google.com").get();
@@ -251,11 +302,12 @@ public class StatisticsServiceImpl implements StatisticsService {
                     saveLemma(siteDB, page);
                     saveIndex(siteDB, page);
 
-                } catch (Exception ignored){
+                } catch (Exception ex) {
+                    System.out.println(ex);
                 }
             }
         } else {
-            siteDB.setLastError(errors[0]);
+            siteDB.setLastError(errors[2]);
             siteDB.setStatusTime(LocalDateTime.now());
             siteDB.setStatus(StatusSait.FAILED);
             synchronized (siteRepository) {

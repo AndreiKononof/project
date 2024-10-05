@@ -2,42 +2,45 @@ package searchengine.services;
 
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
+import org.jsoup.nodes.Document;
 
-import java.util.HashSet;
+import java.util.*;
 
+import org.jsoup.Jsoup;
 @Getter
 @RequiredArgsConstructor
 public class IndexingSite {
     private final String url;
 
-    private final HashSet<String> links = new HashSet<>();
+   private final HashSet<String> links = new HashSet<>();
+
+
+
 
     public HashSet<String> getLinks() {
-        try {
-            Document document;
-            document = Jsoup.connect(url).userAgent("HelionSearchBot").referrer("http://www.google.com").get();
-            Thread.sleep(50);
-            Elements elements = document.select("a[href]");
-            if (!elements.isEmpty()) {
-                elements.forEach(element -> {
-                    String link = element.attr("href");
-                    if (!link.isEmpty()) {
-                        if (checkLink(link)) {
-                            if (link.endsWith("/")) {
-                                links.add("/");
-                                links.add(link.substring(0, link.length() - 1));
-                            } else {
-                                links.add(link);
+            try {
+                Document document;
+                document = Jsoup.connect(url).userAgent("HelionSearchBot").referrer("http://www.google.com").get();
+                Thread.sleep(100);
+                Elements elements = document.select("a[href]");
+                if (!elements.isEmpty()) {
+                    elements.forEach(element -> {
+                        String link = element.attr("href");
+                        if (!link.isEmpty()) {
+                            if (checkLink(link)) {
+                                if (link.endsWith("/")) {
+                                    links.add("/");
+                                    links.add(link.substring(0, link.length() - 1));
+                                } else {
+                                    links.add(link);
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }
+            } catch (Exception ignored) {
             }
-        } catch (Exception ignored) {
-        }
         return links;
     }
 
@@ -48,12 +51,13 @@ public class IndexingSite {
         boolean checkLengthUrl = link.length() > 1;
         boolean checkLinks = !links.contains(link) & !links.contains(link.substring(0, link.length() - 1));
         boolean checkGrid = !link.contains("#");
-        boolean checkPicture = !link.contains(".*") || !link.contains("xml")
-                || !link.contains("jpg") || !link.contains("png");
+        boolean checkPicture = !link.contains(".*") || !link.contains("xml");
         if (checkChar & checkLengthUrl & checkGrid & checkPicture & checkLinks) {
             check = true;
         }
 
         return check;
     }
+
 }
+
