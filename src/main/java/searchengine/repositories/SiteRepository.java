@@ -14,4 +14,7 @@ public interface SiteRepository extends JpaRepository<SiteDB, Integer> {
     @Query (value = "Select id from SiteDB Where url= :url")
     List<Integer> findByUrl (@Param("url") String url);
 
+    @Query (value = "from SiteDB Where url= :url")
+    List<SiteDB> findSiteByUrl (@Param("url") String url);
+
 }

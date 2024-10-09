@@ -13,5 +13,9 @@ import java.util.Optional;
 @Repository
 public interface IndexRepository extends JpaRepository<Index, Integer> {
 
-Optional<Index> findByPageAndLemma(Page page, Lemma lemma);
+    Optional<Index> findByPageAndLemma(Page page, Lemma lemma);
+
+    List<Index> findByPage(Page page);
+
+    List<Index> findByLemma (Lemma lemma);
 }

@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class Data {
-    private String site = "";
+    private String site;
     private String siteName;
     private String uri;
     private String title;

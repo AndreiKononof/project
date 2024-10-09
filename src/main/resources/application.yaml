@@ -26,11 +26,11 @@ indexing-settings:
 #      name: Skillbox.ru
 #    - url: http://ispu.ru
 #      name: ИГЭУ
-#    - url: https://www.stmwater.ru
-#      name: Доставка Воды
-    - url: https://www.playback.ru
-      name: PlayBack.Ru
+    - url: https://www.stmwater.ru
+      name: Доставка Воды
+#    - url: https://www.playback.ru
+#      name: PlayBack.Ru
 #    - url: http://www.radiomv.ru
 #      name: radiomv.ru
-    - url: https://www.ddxfitness.ru
-      name: Фитнес клуб
+    - url: https://sendel.ru
+      name: Sendel
