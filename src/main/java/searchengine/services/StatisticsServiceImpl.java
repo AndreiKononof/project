@@ -44,6 +44,8 @@ public class StatisticsServiceImpl implements StatisticsService {
             "Запущена индексация сайта",
             "Запущена индексация страницы"
     };
+    private static final String TITLE_START = "<title>";
+    private static final String TITLE_END = "</title";
 
     @Override
     public StatisticsResponse getStatistics() {
@@ -306,18 +308,8 @@ public class StatisticsServiceImpl implements StatisticsService {
             List<Data> dataList = new ArrayList<>();
             if (!indexForSearch.isEmpty()) {
                 for (Index index : indexForSearch) {
-                    Data dataNew = new Data();
-                    String content = index.getPage().getContent();
-                    int startIndex = content.indexOf(titleStart) + titleStart.length();
-                    int endIndex = content.indexOf(titleEnd);
-                    String title = content.substring(startIndex, endIndex);
-                    dataNew.setSite(index.getPage().getSite().getUrl());
-                    dataNew.setSiteName(index.getPage().getSite().getName());
-                    dataNew.setUri(index.getPage().getPath());
-                    dataNew.setTitle(title);
-                    dataNew.setSnippet(index.getPage().getContent().substring(800, 900));
-                    dataNew.setRelevance(20.0);
-                    dataList.add(dataNew);
+                    Data data = mapToData(index);
+                    dataList.add(data);
                 }
                 dataResponse.setResult(true);
                 dataResponse.setCount(dataList.size());
@@ -432,6 +424,34 @@ public class StatisticsServiceImpl implements StatisticsService {
             }
         }
         return indexingNow;
+    }
+
+    private Data mapToData (Index index){
+        Data data = new Data();
+        String snippetStart = "<p><b>";
+        String snippetEnd = "</p></b>";
+
+        String query = index.getLemma().getLemma();
+
+        String content = index.getPage().getContent();
+        int startIndex = content.indexOf(TITLE_START) + TITLE_START.length();
+        int endIndex = content.indexOf(TITLE_END);
+        String title = content.substring(startIndex, endIndex);
+        String text = content.substring(content.indexOf(query)-50,content.indexOf(query)+50);
+        String regex = "[a-zA-Z]";
+        String regexOne = "[<>]";
+        String snippet = snippetStart
+                .concat(text.replaceAll(regex,"").replaceAll(regexOne,"").replaceAll("\s+"," "))
+                .concat(snippetEnd);
+
+        data.setSite(index.getPage().getSite().getUrl());
+        data.setSiteName(index.getPage().getSite().getName());
+        data.setUri(index.getPage().getPath());
+        data.setTitle(title);
+        data.setSnippet(snippet);
+        data.setRelevance(20.0);
+
+        return data;
     }
 
     private SiteDB mapToSaitDB(StatusSait status, String url, String name, String error) {
