@@ -13,6 +13,7 @@ import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
+import javax.swing.text.html.HTMLDocument;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -235,7 +236,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 System.out.println("Со страницей");
                 Document doc = Jsoup.connect(siteUrl + pageString)
                         .userAgent("HelionSearchEngine").referrer("google.com").get();
-                Page page = mapToPage(siteDB, 200, pageString, doc.toString());
+                Page page = mapToPage(siteDB, pageString, doc.toString());
                 pageRepository.save(page);
                 saveLemma(siteDB, page);
                 saveIndex(siteDB, page);
@@ -252,9 +253,6 @@ public class StatisticsServiceImpl implements StatisticsService {
         DataResponse dataResponse = new DataResponse();
         dataResponse.setResult(false);
         dataResponse.setCount(0);
-        String titleStart = "<title>";
-        String titleEnd = "</title";
-
 
         if (!query.isEmpty()) {
             SiteDB siteDB = siteRepository.findSiteByUrl(site).get(0);
@@ -321,62 +319,35 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     private void indexingSait(Site site) {
-        SiteDB siteDB = mapToSaitDB(StatusSait.INDEXING, site.getUrl(), site.getName(), errors[3]);
+        long start = System.currentTimeMillis();
+        SiteDB siteDB = mapToSaitDB(site.getUrl(), site.getName(), errors[3]);
+        HashSet <Lemma> lemmaSet = new HashSet<>();
+        HashSet <Index> indexSet = new HashSet<>();
 
         if (getCheckInternet(site.getUrl())) {
             synchronized (siteRepository) {
                 siteRepository.saveAndFlush(siteDB);
             }
-            long startGetHTML = System.currentTimeMillis();
             HashSet<String> checkLinks = new HashSet<>();
-            HashSet<String> linksSait = new ForkJoinPool()
-                    .invoke(new RecursiveTaskMapSite(new IndexingSite(siteDB.getUrl(), checkLinks), checkLinks, siteDB.getUrl()));
-            HashSet<Page> pages = new HashSet<>();
-            linksSait.add("/");
-            System.out.println(site.getUrl() + " - " + (System.currentTimeMillis() - startGetHTML) / 1000 + " s - Получение ссылок");
-            long startSavePage = System.currentTimeMillis();
-            for (String link : linksSait) {
-                try {
-                    Document doc = Jsoup.connect(siteDB.getUrl() + link).userAgent("HelionSearchEngine").referrer("google.com").get();
-                    Page page = mapToPage(siteDB, 200, link, doc.toString());
-                    pages.add(page);
-                    if (pages.size() > 1000) {
-                        synchronized (pageRepository) {
-                            pageRepository.saveAll(pages);
-                        }
-                        pages.clear();
-                    }
-                    Thread.sleep(50);
-                } catch (Exception ignored) {
-                }
-            }
-            synchronized (pageRepository) {
-                pageRepository.saveAll(pages);
-            }
-            System.out.println(site.getUrl() + " - " + (System.currentTimeMillis() - startSavePage) / 1000 + " s - Сохранение в БД");
+            new ForkJoinPool().invoke(new RecursiveTaskMapSite(new IndexingSite(siteDB, siteDB.getUrl(), checkLinks, pageRepository), checkLinks, siteDB.getUrl()));
             List<Integer> pageListId = pageRepository.findAllIdWhereSite(siteDB);
-            long startSaveLemmaIndex = System.currentTimeMillis();
-            int i = 0;
             for (Integer pageId : pageListId) {
-                i++;
+                long startPage = System.currentTimeMillis();
                 if (indexingStop) {
                     break;
                 }
                 try {
                     Page page = pageRepository.findById(pageId).get();
-//                    long startSaveLemma = System.currentTimeMillis();
+                    long startLemma = System.currentTimeMillis();
                     saveLemma(siteDB, page);
-//                    System.out.println(site.getUrl() +" - " + (System.currentTimeMillis()-startSaveLemma)/1000+" s - Сохранение лемм");
-//                    long startSaveIndex = System.currentTimeMillis();
+                    System.out.println("Завершено сохранение леммы на странице "+siteDB.getName()+" "+page.getPath()+" "+(System.currentTimeMillis()-startLemma));
+                    long startIndex = System.currentTimeMillis();
                     saveIndex(siteDB, page);
-//                    System.out.println(site.getUrl()+" - "+ (System.currentTimeMillis()-startSaveIndex)/1000 + " s - Сохранение индекса");
-
+                    System.out.println("Завершено сохранение индекса "+siteDB.getName()+" "+page.getPath()+" "+(System.currentTimeMillis()-startIndex));
                 } catch (Exception ex) {
-                    System.out.println(ex);
+                    System.out.println("При сохранение лемм и индексации\n"+ex);
                 }
-                System.out.println(Thread.currentThread() + " " + i + " Страница по счету");
             }
-            System.out.println(Thread.currentThread() + "-" + site.getUrl() + " - " + (System.currentTimeMillis() - startSaveLemmaIndex) / 1000 + " s");
         } else {
             siteDB.setLastError(errors[2]);
             siteDB.setStatusTime(LocalDateTime.now());
@@ -392,6 +363,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 siteRepository.saveAndFlush(siteDB);
             }
         }
+        System.out.println("Индексация сайта " + siteDB.getName() + " завершенна за - " + (System.currentTimeMillis() - start));
     }
 
     private boolean getCheckInternet(String siteUrl) {
@@ -402,7 +374,6 @@ public class StatisticsServiceImpl implements StatisticsService {
             connection.connect();
         } catch (Exception ex) {
             checkInternet = false;
-            return checkInternet;
         }
         return checkInternet;
     }
@@ -414,7 +385,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         indexRepository.deleteAll();
     }
 
-    private synchronized boolean getIndexingNow() {
+    private boolean getIndexingNow() {
         boolean indexingNow = false;
         List<SiteDB> siteDBS = siteRepository.findAll();
         for (SiteDB site : siteDBS) {
@@ -426,24 +397,22 @@ public class StatisticsServiceImpl implements StatisticsService {
         return indexingNow;
     }
 
-    private Data mapToData (Index index){
+    private Data mapToData(Index index) {
         Data data = new Data();
         String snippetStart = "<p><b>";
         String snippetEnd = "</p></b>";
 
         String query = index.getLemma().getLemma();
-
         String content = index.getPage().getContent();
         int startIndex = content.indexOf(TITLE_START) + TITLE_START.length();
         int endIndex = content.indexOf(TITLE_END);
         String title = content.substring(startIndex, endIndex);
-        String text = content.substring(content.indexOf(query)-50,content.indexOf(query)+50);
+        String text = content.substring(content.indexOf(query), content.indexOf(query) + query.length());
         String regex = "[a-zA-Z]";
         String regexOne = "[<>]";
         String snippet = snippetStart
-                .concat(text.replaceAll(regex,"").replaceAll(regexOne,"").replaceAll("\s+"," "))
+                .concat(text.replaceAll(regex, "").replaceAll(regexOne, "").replaceAll("\s+", " "))
                 .concat(snippetEnd);
-
         data.setSite(index.getPage().getSite().getUrl());
         data.setSiteName(index.getPage().getSite().getName());
         data.setUri(index.getPage().getPath());
@@ -454,9 +423,9 @@ public class StatisticsServiceImpl implements StatisticsService {
         return data;
     }
 
-    private SiteDB mapToSaitDB(StatusSait status, String url, String name, String error) {
+    private SiteDB mapToSaitDB(String url, String name, String error) {
         SiteDB site = new SiteDB();
-        site.setStatus(status);
+        site.setStatus(StatusSait.INDEXING);
         site.setUrl(url);
         site.setName(name);
         site.setStatusTime(LocalDateTime.now());
@@ -464,10 +433,10 @@ public class StatisticsServiceImpl implements StatisticsService {
         return site;
     }
 
-    private Page mapToPage(SiteDB sait, int code, String path, String content) {
+    private Page mapToPage(SiteDB sait, String path, String content) {
         Page page = new Page();
         page.setSite(sait);
-        page.setCode(code);
+        page.setCode(200);
         page.setPath(path);
         page.setContent(content);
         return page;
@@ -490,7 +459,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         return index;
     }
 
-    private synchronized void saveIndex(SiteDB site, Page page) throws IOException {
+    private void saveIndex(SiteDB site, Page page) throws IOException {
         List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
         List<Index> indexList = new ArrayList<>();
         List<String> indexLemma = new ArrayList<>();
@@ -508,7 +477,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 indexLemma.add(index.getLemma().getLemma());
             }
         }
-        indexRepository.saveAllAndFlush(indexList);
+        indexRepository.saveAll(indexList);
     }
 
     private List<Lemma> getLemmaListOnThePage(SiteDB site, Page page) throws IOException {
@@ -522,7 +491,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         return lemmaList;
     }
 
-    private synchronized void saveLemma(SiteDB site, Page page) throws IOException {
+    private void saveLemma(SiteDB site, Page page) throws IOException {
         List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
         List<Lemma> cashLemma = new ArrayList<>();
         List<Lemma> lemmaOnPage = new ArrayList<>();
@@ -543,6 +512,6 @@ public class StatisticsServiceImpl implements StatisticsService {
                 cashLemma.add(lemma);
             }
         }
-        lemmaRepository.saveAllAndFlush(cashLemma);
+        lemmaRepository.saveAll(cashLemma);
     }
 }

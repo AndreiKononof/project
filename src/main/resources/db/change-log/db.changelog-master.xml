@@ -70,7 +70,8 @@
             </column>
         </createTable>
         <createIndex tableName="page" indexName="index_path" >
-            <column name="path"/>
+            <column name="path">
+            </column>
         </createIndex>
     </changeSet>
 </databaseChangeLog>

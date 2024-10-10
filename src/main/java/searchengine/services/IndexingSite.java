@@ -9,12 +9,17 @@ import org.jsoup.nodes.Document;
 import java.util.*;
 
 import org.jsoup.Jsoup;
+import searchengine.model.Page;
+import searchengine.model.SiteDB;
+import searchengine.repositories.PageRepository;
+
 @Getter
 @RequiredArgsConstructor
 public class IndexingSite {
+    private final SiteDB siteDB;
     private final String url;
     private final HashSet<String> checkLink;
-
+    private final PageRepository pageRepository;
 
     private final HashSet<String> links = new HashSet<>();
 
@@ -22,6 +27,16 @@ public class IndexingSite {
         Document document;
         try {
             document = Jsoup.connect(url).get();
+            String uri=url;
+            if(uri.equals(siteDB.getUrl())){
+                uri ="";
+            } else {
+                uri = url.substring(siteDB.getUrl().length());
+            }
+            if(!uri.isEmpty()) {
+                Page page = mapToPage(siteDB, 200, uri, document.toString());
+                pageRepository.save(page);
+            }
             Thread.sleep(50);
         } catch (Exception ex) {
             document = null;
@@ -88,55 +103,13 @@ public class IndexingSite {
         return check;
     }
 
+    private Page mapToPage(SiteDB sait, int code, String path, String content) {
+        Page page = new Page();
+        page.setSite(sait);
+        page.setCode(code);
+        page.setPath(path);
+        page.setContent(content);
+        return page;
+    }
 }
-//    private final String url;
-//
-//   private final HashSet<String> links = new HashSet<>();
-//
-//
-//
-//
-//    public HashSet<String> getLinks() {
-//            try {
-//                Document document;
-//                document = Jsoup.connect(url).userAgent("HelionSearchBot").referrer("http://www.google.com").get();
-//                System.out.println(url + " "+"Добавлена в БД");
-//                Elements elements = document.select("a[href]");
-//                if (!elements.isEmpty()) {
-//                    elements.forEach(element -> {
-//                        String link = element.attr("href");
-//                        if (!link.isEmpty()) {
-//                            if (checkLink(link)) {
-//                                if (link.endsWith("/")) {
-//                                    links.add("/");
-//                                    links.add(link.substring(0, link.length() - 1));
-//                                } else {
-//                                    links.add(link);
-//                                }
-//                            }
-//                        }
-//                    });
-//                }
-//            } catch (Exception ignored) {
-//                System.out.println(url+" " + "Произошла ошибка");
-//            }
-//        return links;
-//    }
-//
-//    private boolean checkLink(String link) {
-//        boolean check = false;
-//
-//        boolean checkChar = link.charAt(0) == '/';
-//        boolean checkLengthUrl = link.length() > 1;
-//        boolean checkLinks = !links.contains(link) & !links.contains(link.substring(0, link.length() - 1));
-//        boolean checkGrid = !link.contains("#");
-//        boolean checkPicture = !link.contains(".*") || !link.contains("xml");
-//        if (checkChar & checkLengthUrl & checkGrid & checkPicture & checkLinks ) {
-//            check = true;
-//        }
-//
-//        return check;
-//    }
-//
-//}
 
