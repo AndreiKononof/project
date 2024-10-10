@@ -168,7 +168,6 @@ public class StatisticsServiceImpl implements StatisticsService {
                     siteRepository.deleteById(siteId.get(0));
                     indexingSait(site);
                 } catch (Exception ignored) {
-                    System.out.println(ignored);
                 }
             } else {
                 String name = "";
@@ -250,8 +249,10 @@ public class StatisticsServiceImpl implements StatisticsService {
     public DataResponse getSearch(String query, String site) {
         DataResponse dataResponse = new DataResponse();
         dataResponse.setResult(false);
-        dataResponse.setCount(2);
-        Data data = new Data();
+        dataResponse.setCount(0);
+        String titleStart = "<title>";
+        String titleEnd = "</title";
+
 
         if (!query.isEmpty()) {
             SiteDB siteDB = siteRepository.findSiteByUrl(site).get(0);
@@ -267,20 +268,24 @@ public class StatisticsServiceImpl implements StatisticsService {
             for (String lemma : lemmaList) {
                 try {
                     lemmaInDB.add(lemmaRepository.findByLemma(lemma).get(0));
-                } catch (Exception ex){}
+                } catch (Exception ignored) {
+                    return dataResponse;
+                }
             }
 
             lemmaInDB.sort(Comparator.comparing(Lemma::getFrequency));
 
             boolean deleteFrequency = true;
-            while (deleteFrequency) {
-                int index = lemmaInDB.size() - 1;
-                int frequency = lemmaInDB.get(index).getFrequency();
+            if (!lemmaInDB.isEmpty()) {
+                while (deleteFrequency) {
+                    int index = lemmaInDB.size() - 1;
+                    int frequency = lemmaInDB.get(index).getFrequency();
 
-                if (frequency > countPage) {
-                    lemmaInDB.remove(index);
-                } else {
-                    deleteFrequency = false;
+                    if (frequency > countPage) {
+                        lemmaInDB.remove(index);
+                    } else {
+                        deleteFrequency = false;
+                    }
                 }
             }
 
@@ -301,13 +306,18 @@ public class StatisticsServiceImpl implements StatisticsService {
             List<Data> dataList = new ArrayList<>();
             if (!indexForSearch.isEmpty()) {
                 for (Index index : indexForSearch) {
-                    data.setSite(index.getPage().getSite().getUrl());
-                    data.setSiteName(index.getPage().getSite().getName());
-                    data.setUri(index.getPage().getPath());
-                    data.setTitle(index.getPage().getContent().substring(0,10));
-                    data.setSnippet(index.getPage().getContent().substring(10,20));
-                    data.setRelevance(20.0);
-                    dataList.add(data);
+                    Data dataNew = new Data();
+                    String content = index.getPage().getContent();
+                    int startIndex = content.indexOf(titleStart) + titleStart.length();
+                    int endIndex = content.indexOf(titleEnd);
+                    String title = content.substring(startIndex, endIndex);
+                    dataNew.setSite(index.getPage().getSite().getUrl());
+                    dataNew.setSiteName(index.getPage().getSite().getName());
+                    dataNew.setUri(index.getPage().getPath());
+                    dataNew.setTitle(title);
+                    dataNew.setSnippet(index.getPage().getContent().substring(800, 900));
+                    dataNew.setRelevance(20.0);
+                    dataList.add(dataNew);
                 }
                 dataResponse.setResult(true);
                 dataResponse.setCount(dataList.size());
