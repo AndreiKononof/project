@@ -238,8 +238,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                         .userAgent("HelionSearchEngine").referrer("google.com").get();
                 Page page = mapToPage(siteDB, pageString, doc.toString());
                 pageRepository.save(page);
-                saveLemma(siteDB, page);
-                saveIndex(siteDB, page);
+                saveLemmaAndIndex(siteDB, page);
                 response.setResult(true);
                 response.setError(errors[7]);
             }
@@ -321,8 +320,6 @@ public class StatisticsServiceImpl implements StatisticsService {
     private void indexingSait(Site site) {
         long start = System.currentTimeMillis();
         SiteDB siteDB = mapToSaitDB(site.getUrl(), site.getName(), errors[3]);
-        HashSet <Lemma> lemmaSet = new HashSet<>();
-        HashSet <Index> indexSet = new HashSet<>();
 
         if (getCheckInternet(site.getUrl())) {
             synchronized (siteRepository) {
@@ -332,18 +329,12 @@ public class StatisticsServiceImpl implements StatisticsService {
             new ForkJoinPool().invoke(new RecursiveTaskMapSite(new IndexingSite(siteDB, siteDB.getUrl(), checkLinks, pageRepository), checkLinks, siteDB.getUrl()));
             List<Integer> pageListId = pageRepository.findAllIdWhereSite(siteDB);
             for (Integer pageId : pageListId) {
-                long startPage = System.currentTimeMillis();
                 if (indexingStop) {
                     break;
                 }
                 try {
                     Page page = pageRepository.findById(pageId).get();
-                    long startLemma = System.currentTimeMillis();
-                    saveLemma(siteDB, page);
-                    System.out.println("Завершено сохранение леммы на странице "+siteDB.getName()+" "+page.getPath()+" "+(System.currentTimeMillis()-startLemma));
-                    long startIndex = System.currentTimeMillis();
-                    saveIndex(siteDB, page);
-                    System.out.println("Завершено сохранение индекса "+siteDB.getName()+" "+page.getPath()+" "+(System.currentTimeMillis()-startIndex));
+                    saveLemmaAndIndex(siteDB, page);
                 } catch (Exception ex) {
                     System.out.println("При сохранение лемм и индексации\n"+ex);
                 }
@@ -459,10 +450,51 @@ public class StatisticsServiceImpl implements StatisticsService {
         return index;
     }
 
-    private void saveIndex(SiteDB site, Page page) throws IOException {
+    private List<Lemma> getLemmaListOnThePage(SiteDB site, Page page) throws IOException {
+        List<Lemma> lemmaList = new ArrayList<>();
+        ListLemma listLemma = new ListLemma();
+        List<String> lemmaWordList = listLemma.getListLemmas(page.getContent());
+        for (String lemmaWord : lemmaWordList) {
+            Lemma lemma = mapToLemma(site, lemmaWord);
+            lemmaList.add(lemma);
+        }
+        return lemmaList;
+    }
+
+    private void saveLemmaAndIndex(SiteDB site, Page page) throws IOException {
+
         List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
+        List<Lemma> cashLemma = new ArrayList<>();
+        List<Lemma> lemmaOnPage = new ArrayList<>();
+        Set<String> lemmaWords = new HashSet<>();
+
+        for (Lemma lemma : lemmaList) {
+            if (!lemmaWords.contains(lemma.getLemma())) {
+                lemmaOnPage.add(lemma);
+                lemmaWords.add(lemma.getLemma());
+            }
+        }
+        long start = System.currentTimeMillis();
+        for (Lemma lemma : lemmaOnPage) {
+            Optional<Integer> idLemma = lemmaRepository.findIdLemmaWithSite(lemma.getLemma(), site);
+            if (idLemma.isPresent()) {
+                Optional<Lemma> lemmaInBD = lemmaRepository.findById(idLemma.get());
+                lemmaInBD.get().setFrequency(lemmaInBD.get().getFrequency() + 1);
+                cashLemma.add(lemmaInBD.get());
+            } else {
+                cashLemma.add(lemma);
+            }
+        }
+        System.out.println("Создание леммы или модернизация "+(System.currentTimeMillis()-start));
+        long startSave = System.currentTimeMillis();
+        System.out.println(cashLemma.size());
+        lemmaRepository.saveAll(cashLemma);
+        System.out.println("Сохранение лемм "+(System.currentTimeMillis()-startSave));
+
+
         List<Index> indexList = new ArrayList<>();
         List<String> indexLemma = new ArrayList<>();
+        long startIndex = System.currentTimeMillis();
         for (Lemma lemma : lemmaList) {
             Lemma lemmaDB = lemmaRepository.findByLemma(lemma.getLemma()).get(0);
             Index index = mapToIndex(page, lemmaDB);
@@ -477,41 +509,10 @@ public class StatisticsServiceImpl implements StatisticsService {
                 indexLemma.add(index.getLemma().getLemma());
             }
         }
+        System.out.println("Создание индекса или модернизация "+(System.currentTimeMillis()-startIndex));
+        long startSaveIndex = System.currentTimeMillis();
+        System.out.println(indexLemma.size());
         indexRepository.saveAll(indexList);
-    }
-
-    private List<Lemma> getLemmaListOnThePage(SiteDB site, Page page) throws IOException {
-        List<Lemma> lemmaList = new ArrayList<>();
-        ListLemma listLemma = new ListLemma();
-        List<String> lemmaWordList = listLemma.getListLemmas(page.getContent());
-        for (String lemmaWord : lemmaWordList) {
-            Lemma lemma = mapToLemma(site, lemmaWord);
-            lemmaList.add(lemma);
-        }
-        return lemmaList;
-    }
-
-    private void saveLemma(SiteDB site, Page page) throws IOException {
-        List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
-        List<Lemma> cashLemma = new ArrayList<>();
-        List<Lemma> lemmaOnPage = new ArrayList<>();
-        Set<String> lemmaWords = new HashSet<>();
-        for (Lemma lemma : lemmaList) {
-            if (!lemmaWords.contains(lemma.getLemma())) {
-                lemmaOnPage.add(lemma);
-                lemmaWords.add(lemma.getLemma());
-            }
-        }
-        for (Lemma lemma : lemmaOnPage) {
-            Optional<Integer> idLemma = lemmaRepository.findIdLemmaWithSite(lemma.getLemma(), site);
-            if (idLemma.isPresent()) {
-                Optional<Lemma> lemmaInBD = lemmaRepository.findById(idLemma.get());
-                lemmaInBD.get().setFrequency(lemmaInBD.get().getFrequency() + 1);
-                cashLemma.add(lemmaInBD.get());
-            } else {
-                cashLemma.add(lemma);
-            }
-        }
-        lemmaRepository.saveAll(cashLemma);
+        System.out.println("Сохранение индекса "+(System.currentTimeMillis()-startSaveIndex)+"\n");
     }
 }
