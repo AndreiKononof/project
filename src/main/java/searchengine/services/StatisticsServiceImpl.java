@@ -13,7 +13,6 @@ import searchengine.repositories.LemmaRepository;
 import searchengine.repositories.PageRepository;
 import searchengine.repositories.SiteRepository;
 
-import javax.swing.text.html.HTMLDocument;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -21,6 +20,9 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -45,8 +47,7 @@ public class StatisticsServiceImpl implements StatisticsService {
             "Запущена индексация сайта",
             "Запущена индексация страницы"
     };
-    private static final String TITLE_START = "<title>";
-    private static final String TITLE_END = "</title";
+
 
     @Override
     public StatisticsResponse getStatistics() {
@@ -94,6 +95,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         if (getIndexingNow()) {
             response.setResult(false);
             response.setError(errors[4]);
+            getStopIndexing();
             return response;
         }
 
@@ -138,7 +140,7 @@ public class StatisticsServiceImpl implements StatisticsService {
     @Override
     public IndexResponse getIndexSait(String url) {
         url = url.toLowerCase();
-        url = url.replaceAll("\s", "");
+        url = url.replaceAll("\\s+", "");
         String siteUrl;
         String http = "http://";
         String urlHttp = "";
@@ -248,72 +250,46 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     @Override
-    public DataResponse getSearch(String query, String site) {
+    public DataResponse getSearch(String query, String siteQuery) {
         DataResponse dataResponse = new DataResponse();
+        List<Data> dataList = new ArrayList<>();
+
         dataResponse.setResult(false);
         dataResponse.setCount(0);
+        dataResponse.setData(dataList);
 
-        if (!query.isEmpty()) {
-            SiteDB siteDB = siteRepository.findSiteByUrl(site).get(0);
-            List<String> lemmaList = new ArrayList<>();
-            try {
-                ListLemma lemma = new ListLemma();
-                lemmaList = lemma.getListLemmas(query);
-            } catch (Exception ignored) {
-            }
+        SiteDB site;
+        String[] queryWord = query.split("\\s");
 
-            List<Lemma> lemmaInDB = new ArrayList<>();
-            Integer countPage = pageRepository.findCountPageOnSite(siteDB);
-            for (String lemma : lemmaList) {
-                try {
-                    lemmaInDB.add(lemmaRepository.findByLemma(lemma).get(0));
-                } catch (Exception ignored) {
-                    return dataResponse;
+        try {
+            site = siteRepository.findSiteByUrl(siteQuery).get(0);
+            GetLemmaList getLemmaList = new GetLemmaList();
+            List<String> lemma = getLemmaList.getListLemmas(query.replaceAll("\\s+",""));
+            List<Lemma> lemmaOnDB = lemmaRepository.findByLemma(lemma.get(0));
+            List<Index> indexList = indexRepository.findByLemma(lemmaOnDB.get(0));
+            List<Integer> pageListOnSite = pageRepository.findAllIdWhereSite(site);
+            List<Index> indexForQuery = new ArrayList<>();
+
+            for (Index index : indexList) {
+                if (pageListOnSite.contains(index.getPage().getId())) {
+                    indexForQuery.add(index);
                 }
             }
 
-            lemmaInDB.sort(Comparator.comparing(Lemma::getFrequency));
+            indexForQuery.sort(Comparator.comparing(Index::getRank));
+            Collections.reverse(indexForQuery);
 
-            boolean deleteFrequency = true;
-            if (!lemmaInDB.isEmpty()) {
-                while (deleteFrequency) {
-                    int index = lemmaInDB.size() - 1;
-                    int frequency = lemmaInDB.get(index).getFrequency();
-
-                    if (frequency > countPage) {
-                        lemmaInDB.remove(index);
-                    } else {
-                        deleteFrequency = false;
-                    }
-                }
-            }
-
-            List<Index> indexList = new ArrayList<>();
-            List<Integer> pageListOnSite = pageRepository.findAllIdWhereSite(siteDB);
-            for (Lemma lemma : lemmaInDB) {
-                indexList.addAll(indexRepository.findByLemma(lemma));
-            }
-
-            List<Index> indexForSearch = new ArrayList<>();
-            if (!indexList.isEmpty()) {
-                for (Index index : indexList) {
-                    if (pageListOnSite.contains(index.getPage().getId())) {
-                        indexForSearch.add(index);
-                    }
-                }
-            }
-            List<Data> dataList = new ArrayList<>();
-            if (!indexForSearch.isEmpty()) {
-                for (Index index : indexForSearch) {
-                    Data data = mapToData(index);
-                    dataList.add(data);
-                }
-                dataResponse.setResult(true);
-                dataResponse.setCount(dataList.size());
-                dataResponse.setData(dataList);
-            }
-
+            dataResponse.setResult(true);
+            dataResponse.setCount(indexForQuery.size());
+            indexForQuery.forEach(el -> {
+                Data data = mapToData(el);
+                dataList.add(data);
+            });
+        } catch (Exception exception) {
+            System.out.println(exception);
         }
+
+
         return dataResponse;
     }
 
@@ -336,7 +312,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                     Page page = pageRepository.findById(pageId).get();
                     saveLemmaAndIndex(siteDB, page);
                 } catch (Exception ex) {
-                    System.out.println("При сохранение лемм и индексации\n"+ex);
+                    System.out.println("При сохранение лемм и индексации\n" + ex);
                 }
             }
         } else {
@@ -369,7 +345,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         return checkInternet;
     }
 
-    private void deleteAllDB() {
+    private synchronized void deleteAllDB() {
         siteRepository.deleteAll();
         pageRepository.deleteAll();
         lemmaRepository.deleteAll();
@@ -390,25 +366,43 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     private Data mapToData(Index index) {
         Data data = new Data();
-        String snippetStart = "<p><b>";
-        String snippetEnd = "</p></b>";
 
-        String query = index.getLemma().getLemma();
+        StringBuilder snippet = new StringBuilder();
         String content = index.getPage().getContent();
-        int startIndex = content.indexOf(TITLE_START) + TITLE_START.length();
-        int endIndex = content.indexOf(TITLE_END);
-        String title = content.substring(startIndex, endIndex);
-        String text = content.substring(content.indexOf(query), content.indexOf(query) + query.length());
-        String regex = "[a-zA-Z]";
-        String regexOne = "[<>]";
-        String snippet = snippetStart
-                .concat(text.replaceAll(regex, "").replaceAll(regexOne, "").replaceAll("\s+", " "))
-                .concat(snippetEnd);
+        String title = "";
+
+        try {
+            Pattern patternTitle = Pattern.compile("<title[A-Za-z\"=:\\s]*>[«»A-Za-zА-Яа-я.,?\\-!\\[\\]{}()=;:'\"@#№%\\s0-9]+</title>");
+            Matcher matcherTitle = patternTitle.matcher(content);
+            matcherTitle.find();
+            title = matcherTitle.group().substring(matcherTitle.group().indexOf(">") + 1, matcherTitle.group().indexOf("<", matcherTitle.group().indexOf(">")));
+
+            Pattern pattern = Pattern.compile(">[«»A-Za-zА-Яа-я.,?!\\-\\[\\]{}()=;:'\"@#№%\\s0-9]+</");
+            Matcher matcher = pattern.matcher(content);
+            int i = 0;
+            while (matcher.find()) {
+                if (matcher.group().toLowerCase().contains(index.getLemma().getLemma().toLowerCase())) {
+                    i++;
+                    if (i <= 3) {
+                        if (matcher.group().length() > 100) {
+                            snippet.append("<p><b>").append(matcher.group(), 1, 100).append("....</b></p>");
+                        } else {
+                            snippet.append("<p><b>").append(matcher.group(), 1, matcher.group().length() - 1).append("</b></p>");
+                        }
+                        System.out.println(snippet);
+                    }
+                }
+            }
+        } catch (IllegalStateException ex) {
+            System.out.println(ex);
+        }
+
+        String snippetOnSearch = String.valueOf(snippet);
         data.setSite(index.getPage().getSite().getUrl());
         data.setSiteName(index.getPage().getSite().getName());
         data.setUri(index.getPage().getPath());
         data.setTitle(title);
-        data.setSnippet(snippet);
+        data.setSnippet(snippetOnSearch);
         data.setRelevance(20.0);
 
         return data;
@@ -452,7 +446,7 @@ public class StatisticsServiceImpl implements StatisticsService {
 
     private List<Lemma> getLemmaListOnThePage(SiteDB site, Page page) throws IOException {
         List<Lemma> lemmaList = new ArrayList<>();
-        ListLemma listLemma = new ListLemma();
+        GetLemmaList listLemma = new GetLemmaList();
         List<String> lemmaWordList = listLemma.getListLemmas(page.getContent());
         for (String lemmaWord : lemmaWordList) {
             Lemma lemma = mapToLemma(site, lemmaWord);
@@ -462,19 +456,20 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     private void saveLemmaAndIndex(SiteDB site, Page page) throws IOException {
-
+        System.out.println(site.getUrl() + " " + page.getId() + " индексируется");
         List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
         List<Lemma> cashLemma = new ArrayList<>();
         List<Lemma> lemmaOnPage = new ArrayList<>();
         Set<String> lemmaWords = new HashSet<>();
+        List<String> lemmaWordsFull = new ArrayList<>();
 
         for (Lemma lemma : lemmaList) {
             if (!lemmaWords.contains(lemma.getLemma())) {
                 lemmaOnPage.add(lemma);
                 lemmaWords.add(lemma.getLemma());
             }
+            lemmaWordsFull.add(lemma.getLemma());
         }
-        long start = System.currentTimeMillis();
         for (Lemma lemma : lemmaOnPage) {
             Optional<Integer> idLemma = lemmaRepository.findIdLemmaWithSite(lemma.getLemma(), site);
             if (idLemma.isPresent()) {
@@ -485,34 +480,16 @@ public class StatisticsServiceImpl implements StatisticsService {
                 cashLemma.add(lemma);
             }
         }
-        System.out.println("Создание леммы или модернизация "+(System.currentTimeMillis()-start));
-        long startSave = System.currentTimeMillis();
-        System.out.println(cashLemma.size());
         lemmaRepository.saveAll(cashLemma);
-        System.out.println("Сохранение лемм "+(System.currentTimeMillis()-startSave));
 
 
         List<Index> indexList = new ArrayList<>();
-        List<String> indexLemma = new ArrayList<>();
-        long startIndex = System.currentTimeMillis();
-        for (Lemma lemma : lemmaList) {
+        for (Lemma lemma : lemmaOnPage) {
             Lemma lemmaDB = lemmaRepository.findByLemma(lemma.getLemma()).get(0);
             Index index = mapToIndex(page, lemmaDB);
-            if (indexLemma.contains(index.getLemma().getLemma())) {
-                indexList.forEach(el -> {
-                    if (el.getLemma().getLemma().equals(index.getLemma().getLemma())) {
-                        el.setRank(el.getRank() + 1);
-                    }
-                });
-            } else {
-                indexList.add(index);
-                indexLemma.add(index.getLemma().getLemma());
-            }
+            index.setRank(lemmaWordsFull.stream().filter(el -> el.equals(lemma.getLemma())).count());
+            indexList.add(index);
         }
-        System.out.println("Создание индекса или модернизация "+(System.currentTimeMillis()-startIndex));
-        long startSaveIndex = System.currentTimeMillis();
-        System.out.println(indexLemma.size());
         indexRepository.saveAll(indexList);
-        System.out.println("Сохранение индекса "+(System.currentTimeMillis()-startSaveIndex)+"\n");
     }
 }

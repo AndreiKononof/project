@@ -6,22 +6,32 @@ import org.apache.lucene.morphology.russian.RussianLuceneMorphology;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 
-public class ListLemma {
+public class GetLemmaList {
 
     LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
 
-    public ListLemma() throws IOException {
+    public GetLemmaList() throws IOException {
     }
 
     public List<String> getListLemmas(String text){
         List<String> lemmas = new ArrayList<>();
-        String regex = "[.,:;]";
-        String regexRussLang = "[^а-яА-Я]";
-        String[] words = text.toLowerCase().replaceAll(regex, "")
-                .replaceAll(regexRussLang," ").split("\s+");
-
+        StringBuilder textInTeg = new StringBuilder();
+        List<String> words = new ArrayList<>();
+        if(text.contains("<")) {
+            Pattern pattern = Pattern.compile(">[«»A-Za-zА-Яа-я.,?!\\-\\[\\]{}()=;:'\"@#№%\\s0-9]+</");
+            Matcher matcher = pattern.matcher(text);
+            String regex = "[«»A-Za-z.,?!\\-\\[\\]{}()=;:'\"@#№%0-9/]";
+            while (matcher.find()) {
+                textInTeg.append(matcher.group().substring(1, matcher.group().length() - 2).toLowerCase().replaceAll(regex, " ")).append(" ");
+            }
+            words = List.of(String.valueOf(textInTeg).split("\\s+"));
+        } else {
+          words.add(text);
+        }
         for (String word : words) {
             if (word.isBlank()) {
                 continue;
