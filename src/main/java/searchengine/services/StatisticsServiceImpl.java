@@ -42,12 +42,10 @@ public class StatisticsServiceImpl implements StatisticsService {
             "Отсутствует подключение к интернету",
             "Ок",
             "Индексация не закончена",
-            "Данная страница находится за пределами сайтов," +
-                    "указанных в конфигурационном файле",
+            "Данная страница находится за пределами сайтов, указанных в конфигурационном файле",
             "Запущена индексация сайта",
             "Запущена индексация страницы"
     };
-
 
     @Override
     public StatisticsResponse getStatistics() {
@@ -138,113 +136,92 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     @Override
-    public IndexResponse getIndexSait(String url) {
-        url = url.toLowerCase();
-        url = url.replaceAll("\\s+", "");
-        String siteUrl;
-        String http = "http://";
-        String urlHttp = "";
-        String urlHttps = "";
-        String pageString;
-        String https = "https://";
-        List<String> urlList = new ArrayList<>();
-        sites.getSites().forEach(el -> urlList.add(el.getUrl()));
+    public IndexResponse getIndexPageOrSite(String url) {
         IndexResponse response = new IndexResponse();
         response.setResult(false);
         response.setError(errors[5]);
 
+        url = url.toLowerCase();
+        url = url.replaceAll("\\s+", "");
+
+        String siteUrl;
+        String http = "https?://";
+        String pageUri;
+        Site site = new Site();
+        SiteDB siteDB = new SiteDB();
+        int slash;
+
+        try {
+            slash = url.indexOf("/", http.length());
+            siteUrl = url.substring(0, slash);
+            pageUri = url.substring(slash);
+        } catch (Exception ignored) {
+            siteUrl = url;
+            pageUri = "";
+        }
+
         boolean siteContains = false;
-        for (String urlSite : urlList) {
-            if (urlSite.equals(url)) {
+        for (Site urlSite : sites.getSites()) {
+            if (urlSite.getUrl().equals(siteUrl)) {
                 siteContains = true;
                 break;
             }
         }
-        System.out.println(siteContains);
+        if (!siteContains) {
+            return response;
+        }
 
-        if (siteContains) {
-            List<Integer> siteId = siteRepository.findByUrl(url);
+        List<Integer> siteId = siteRepository.findByUrl(siteUrl);
+        if (!siteId.isEmpty()) {
+            try {
+                siteDB = siteRepository.findById(siteId.get(0)).get();
+                site.setUrl(siteDB.getUrl());
+                site.setName(siteDB.getName());
+            } catch (Exception ignored) {
+            }
+        } else {
+            site.setUrl(siteUrl);
+            List<Site> siteList = sites.getSites();
+            for (Site siteConfig : siteList) {
+                if (siteConfig.getUrl().equals(site.getUrl())) {
+                    site.setName(siteConfig.getName());
+                }
+            }
+            siteDB = mapToSaitDB(site.getUrl(), site.getName(), errors[3]);
+            siteRepository.save(siteDB);
+        }
+        if (pageUri.isEmpty()) {
             if (!siteId.isEmpty()) {
-                try {
-                    SiteDB siteDB = siteRepository.findById(siteId.get(0)).get();
-                    Site site = new Site();
-                    site.setUrl(siteDB.getUrl());
-                    site.setName(siteDB.getName());
-                    siteRepository.deleteById(siteId.get(0));
-                    indexingSait(site);
-                } catch (Exception ignored) {
-                }
+                siteRepository.deleteById(siteId.get(0));
+                indexingSait(site);
             } else {
-                String name = "";
-                Site site = new Site();
-                site.setUrl(url);
-                site.setName(name);
-                List<Site> siteList = sites.getSites();
-                for (Site siteConfig : siteList) {
-                    if (siteConfig.getUrl().equals(site.getUrl())) {
-                        site.setName(siteConfig.getName());
-                    }
-                }
                 indexingSait(site);
             }
             response.setResult(true);
             response.setError(errors[6]);
             return response;
-        }
+        } else {
+            try {
+                Optional<Integer> pageOnDB = pageRepository.findIdPage(pageUri, siteDB);
+                pageOnDB.ifPresent(pageRepository::deleteById);
 
-        try {
-            pageString = url.substring(url.indexOf("/", 9));
-            siteUrl = url.substring(0, url.indexOf("/", 9));
-        } catch (Exception e) {
-            pageString = null;
-            siteUrl = url;
-        }
+                Document doc = Jsoup.connect(url).userAgent("HelionSearchEngine").referrer("google.com").get();
+                int code = Jsoup.connect(url).execute().statusCode();
 
-        if (!url.startsWith("http")) {
-            urlHttp = http.concat(siteUrl);
-            urlHttps = https.concat(siteUrl);
-        }
-
-        if (!siteUrl.startsWith("http")) {
-            if (urlList.contains(urlHttp)) {
-                siteUrl = urlHttp;
-            } else if (urlList.contains(urlHttps)) {
-                siteUrl = urlHttps;
-            } else {
-                return response;
-            }
-        } else if (!urlList.contains(siteUrl)) {
-            return response;
-        }
-        System.out.println(siteUrl);
-        System.out.println(pageString);
-
-        List<Integer> siteId = siteRepository.findByUrl(siteUrl);
-        SiteDB siteDB;
-        try {
-            siteDB = siteRepository.findById(siteId.get(0)).get();
-            System.out.println(siteDB.getName());
-            Site site = new Site();
-            site.setUrl(siteDB.getUrl());
-            site.setName(siteDB.getName());
-
-            if (pageString == null) {
-                System.out.println("нет Страницы");
-                siteRepository.deleteById(siteId.get(0));
-                indexingSait(site);
-                response.setError(errors[6]);
-                response.setResult(true);
-            } else {
-                System.out.println("Со страницей");
-                Document doc = Jsoup.connect(siteUrl + pageString)
-                        .userAgent("HelionSearchEngine").referrer("google.com").get();
-                Page page = mapToPage(siteDB, pageString, doc.toString());
+                Page page = mapToPage(siteDB, code, pageUri, doc.toString());
                 pageRepository.save(page);
-                saveLemmaAndIndex(siteDB, page);
-                response.setResult(true);
-                response.setError(errors[7]);
+
+
+                if (page.getCode() < 299 & page.getCode() >= 200) {
+                    saveLemmaAndIndex(siteDB, page);
+                    response.setResult(true);
+                    response.setError(errors[7]);
+                    return response;
+                }
+
+            } catch (Exception ex) {
+                System.out.println(ex);
             }
-        } catch (Exception ignored) {
         }
         return response;
     }
@@ -253,41 +230,67 @@ public class StatisticsServiceImpl implements StatisticsService {
     public DataResponse getSearch(String query, String siteQuery) {
         DataResponse dataResponse = new DataResponse();
         List<Data> dataList = new ArrayList<>();
-
         dataResponse.setResult(false);
         dataResponse.setCount(0);
         dataResponse.setData(dataList);
 
-        SiteDB site;
-        String[] queryWord = query.split("\\s");
+        GetLemmaList getLemmaList = null;
+        SiteDB site = siteRepository.findSiteByUrl(siteQuery).get(0);
 
-        try {
-            site = siteRepository.findSiteByUrl(siteQuery).get(0);
-            GetLemmaList getLemmaList = new GetLemmaList();
-            List<String> lemma = getLemmaList.getListLemmas(query.replaceAll("\\s+",""));
-            List<Lemma> lemmaOnDB = lemmaRepository.findByLemma(lemma.get(0));
-            List<Index> indexList = indexRepository.findByLemma(lemmaOnDB.get(0));
-            List<Integer> pageListOnSite = pageRepository.findAllIdWhereSite(site);
-            List<Index> indexForQuery = new ArrayList<>();
+        String[] queryWords = query.split("\\s");
 
-            for (Index index : indexList) {
-                if (pageListOnSite.contains(index.getPage().getId())) {
-                    indexForQuery.add(index);
-                }
+        List<List<Index>> listIndex = new ArrayList<>();
+
+        for (String word : queryWords) {
+            List<String> lemmaList = new ArrayList<>();
+            try {
+                lemmaList = getLemmaList.getListLemmas(word);
+            } catch (Exception ignored) {
             }
-
-            indexForQuery.sort(Comparator.comparing(Index::getRank));
-            Collections.reverse(indexForQuery);
-
-            dataResponse.setResult(true);
-            dataResponse.setCount(indexForQuery.size());
-            indexForQuery.forEach(el -> {
-                Data data = mapToData(el);
-                dataList.add(data);
-            });
-        } catch (Exception exception) {
-            System.out.println(exception);
+            for (String lemma : lemmaList) {
+                List<Lemma> lemmaDB = lemmaRepository.findByLemma(lemma);
+                List<Index> indexDB = indexRepository.findByLemma(lemmaDB.get(0));
+                List<Index> indexForSearch = new ArrayList<>();
+                for (Index index : indexDB) {
+                    if (index.getPage().getSite().getUrl().equals(site.getUrl())) {
+                        indexForSearch.add(index);
+                    }
+                }
+                listIndex.add(indexForSearch);
+            }
         }
+        listIndex.sort(Comparator.comparing(List::size));
+
+
+
+
+//        try {
+//            site = siteRepository.findSiteByUrl(siteQuery).get(0);
+//            GetLemmaList getLemmaList = new GetLemmaList();
+//            List<String> lemma = getLemmaList.getListLemmas(query.replaceAll("\\s+", ""));
+//            List<Lemma> lemmaOnDB = lemmaRepository.findByLemma(lemma.get(0));
+//            List<Index> indexList = indexRepository.findByLemma(lemmaOnDB.get(0));
+//            List<Integer> pageListOnSite = pageRepository.findAllIdWhereSite(site);
+//            List<Index> indexForQuery = new ArrayList<>();
+//
+//            for (Index index : indexList) {
+//                if (pageListOnSite.contains(index.getPage().getId())) {
+//                    indexForQuery.add(index);
+//                }
+//            }
+//
+//            indexForQuery.sort(Comparator.comparing(Index::getRank));
+//            Collections.reverse(indexForQuery);
+//
+//            dataResponse.setResult(true);
+//            dataResponse.setCount(indexForQuery.size());
+//            indexForQuery.forEach(el -> {
+//                Data data = mapToData(el);
+//                dataList.add(data);
+//            });
+//        } catch (Exception exception) {
+//            System.out.println(exception);
+//        }
 
 
         return dataResponse;
@@ -298,11 +301,11 @@ public class StatisticsServiceImpl implements StatisticsService {
         SiteDB siteDB = mapToSaitDB(site.getUrl(), site.getName(), errors[3]);
 
         if (getCheckInternet(site.getUrl())) {
-            synchronized (siteRepository) {
-                siteRepository.saveAndFlush(siteDB);
-            }
+            siteRepository.saveAndFlush(siteDB);
+
             HashSet<String> checkLinks = new HashSet<>();
             new ForkJoinPool().invoke(new RecursiveTaskMapSite(new IndexingSite(siteDB, siteDB.getUrl(), checkLinks, pageRepository), checkLinks, siteDB.getUrl()));
+
             List<Integer> pageListId = pageRepository.findAllIdWhereSite(siteDB);
             for (Integer pageId : pageListId) {
                 if (indexingStop) {
@@ -312,23 +315,19 @@ public class StatisticsServiceImpl implements StatisticsService {
                     Page page = pageRepository.findById(pageId).get();
                     saveLemmaAndIndex(siteDB, page);
                 } catch (Exception ex) {
-                    System.out.println("При сохранение лемм и индексации\n" + ex);
                 }
             }
         } else {
             siteDB.setLastError(errors[2]);
             siteDB.setStatusTime(LocalDateTime.now());
             siteDB.setStatus(StatusSait.FAILED);
-            synchronized (siteRepository) {
-                siteRepository.save(siteDB);
-            }
+            siteRepository.save(siteDB);
         }
         if (siteRepository.findById(siteDB.getId()).get().getStatus().equals(StatusSait.INDEXING)) {
             siteDB.setStatusTime(LocalDateTime.now());
             siteDB.setStatus(StatusSait.INDEXED);
-            synchronized (siteRepository) {
-                siteRepository.saveAndFlush(siteDB);
-            }
+            siteRepository.saveAndFlush(siteDB);
+
         }
         System.out.println("Индексация сайта " + siteDB.getName() + " завершенна за - " + (System.currentTimeMillis() - start));
     }
@@ -418,10 +417,10 @@ public class StatisticsServiceImpl implements StatisticsService {
         return site;
     }
 
-    private Page mapToPage(SiteDB sait, String path, String content) {
+    private Page mapToPage(SiteDB sait, int code, String path, String content) {
         Page page = new Page();
         page.setSite(sait);
-        page.setCode(200);
+        page.setCode(code);
         page.setPath(path);
         page.setContent(content);
         return page;

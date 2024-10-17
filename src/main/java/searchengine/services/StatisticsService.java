@@ -8,6 +8,6 @@ public interface StatisticsService {
     StatisticsResponse getStatistics();
     IndexResponse getStartIndexing();
     IndexResponse getStopIndexing();
-    IndexResponse getIndexSait(String url);
+    IndexResponse getIndexPageOrSite(String url);
     DataResponse getSearch (String query, String site);
 }

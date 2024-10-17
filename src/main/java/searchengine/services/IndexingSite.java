@@ -26,15 +26,17 @@ public class IndexingSite {
     public HashSet<String> getLinks() {
         Document document;
         try {
-            document = Jsoup.connect(url).get();
+            document = Jsoup.connect(url).userAgent("HelionSearchEngine").referrer("google.com").get();
+            int code = Jsoup.connect(url).userAgent("HelionSearchEngine").referrer("google.com").execute().statusCode();
             String uri=url;
+
             if(uri.equals(siteDB.getUrl())){
-                uri ="";
+                uri ="/";
             } else {
                 uri = url.substring(siteDB.getUrl().length());
             }
             if(!uri.isEmpty()) {
-                Page page = mapToPage(siteDB, 200, uri, document.toString());
+                Page page = mapToPage(siteDB, code, uri, document.toString());
                 pageRepository.save(page);
             }
             Thread.sleep(50);

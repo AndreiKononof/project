@@ -1,14 +1,11 @@
 package searchengine.controllers;
 
-import jakarta.persistence.criteria.CriteriaBuilder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import searchengine.dto.statistics.DataResponse;
 import searchengine.dto.statistics.IndexResponse;
 import searchengine.dto.statistics.StatisticsResponse;
 import searchengine.services.StatisticsService;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/api")
@@ -27,6 +24,7 @@ public class ApiController {
 
     @GetMapping("/startIndexing")
     public ResponseEntity<IndexResponse> indexStart() {
+        System.out.println("Индексация сайта");
         return ResponseEntity.ok(statisticsService.getStartIndexing());
     }
 
@@ -37,7 +35,7 @@ public class ApiController {
 
     @PostMapping("/indexPage")
     public ResponseEntity<IndexResponse> indexPage (@RequestParam String url){
-        return ResponseEntity.ok(statisticsService.getIndexSait(url));
+        return ResponseEntity.ok(statisticsService.getIndexPageOrSite(url));
     }
 
     @GetMapping("/search")
