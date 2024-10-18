@@ -16,7 +16,7 @@ spring:
   liquibase:
     change-log: classpath:db/change-log/db.changelog-master.xml
     enabled: true
-    drop-first: true
+    drop-first: false
 
 indexing-settings:
   sites:

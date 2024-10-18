@@ -10,4 +10,5 @@ public interface StatisticsService {
     IndexResponse getStopIndexing();
     IndexResponse getIndexPageOrSite(String url);
     DataResponse getSearch (String query, String site);
+    DataResponse getSearchAllSite (String query);
 }

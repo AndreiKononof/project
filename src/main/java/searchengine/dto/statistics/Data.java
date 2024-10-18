@@ -11,5 +11,5 @@ public class Data {
     private String uri;
     private String title;
     private String snippet;
-    private Double relevance;
+    private float relevance;
 }

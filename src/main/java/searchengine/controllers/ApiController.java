@@ -39,7 +39,14 @@ public class ApiController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<DataResponse> search (@RequestParam String query, @RequestParam String site){
+    public ResponseEntity<DataResponse> search (@RequestParam String query, @RequestParam (required = false) String site, @RequestParam(value = "limit", defaultValue = "20") Integer limit, @RequestParam(value = "offset", defaultValue = "0") Integer offset){
+            if(site == null) {
+            return ResponseEntity.ok(statisticsService.getSearchAllSite(query));
+            }
             return ResponseEntity.ok(statisticsService.getSearch(query,site));
     }
+//    @GetMapping("/search")
+//    public ResponseEntity<DataResponse> searchAllSite (@RequestParam String query){
+//        return ResponseEntity.ok(statisticsService.getSearchAllSite(query));
+//    }
 }
