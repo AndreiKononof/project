@@ -9,6 +9,6 @@ public interface StatisticsService {
     IndexResponse getStartIndexing();
     IndexResponse getStopIndexing();
     IndexResponse getIndexPageOrSite(String url);
-    DataResponse getSearch (String query, String site);
-    DataResponse getSearchAllSite (String query);
+    DataResponse getSearch (String query, String site, Integer limit, Integer offset);
+    DataResponse getSearchAllSite (String query, Integer limit, Integer offset);
 }

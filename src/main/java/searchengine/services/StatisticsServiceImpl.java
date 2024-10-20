@@ -227,7 +227,7 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     @Override
-    public DataResponse getSearch(String query, String siteQuery) {
+    public DataResponse getSearch(String query, String siteQuery, Integer limit, Integer offset) {
         DataResponse dataResponse = new DataResponse();
         List<Data> dataList = new ArrayList<>();
         dataResponse.setResult(false);
@@ -247,7 +247,6 @@ public class StatisticsServiceImpl implements StatisticsService {
                 GetLemmaList lemmaQuery = new GetLemmaList();
                 lemmaList = lemmaQuery.getListLemmas(word);
             } catch (Exception ignored) {
-                System.out.println(ignored);
             }
             for (String lemma : lemmaList) {
                 List<Lemma> lemmaDB = lemmaRepository.findByLemma(lemma);
@@ -255,7 +254,6 @@ public class StatisticsServiceImpl implements StatisticsService {
                 if (!lemmaDB.isEmpty()) {
                     indexDB = indexRepository.findByLemma(lemmaDB.get(0));
                     LemmaSearch.add(lemmaDB.get(0));
-
                 }
                 List<Index> indexForSearch = new ArrayList<>();
                 for (Index index : indexDB) {
@@ -281,14 +279,14 @@ public class StatisticsServiceImpl implements StatisticsService {
             dataList = mapToData(pageSearch, LemmaSearch, maxAbsRelevant);
             dataList.sort(Comparator.comparing(Data::getRelevance));
             Collections.reverse(dataList);
-            dataResponse.setData(dataList);
+            dataResponse.setData(dataList.stream().skip(offset).limit(limit).toList());
             dataResponse.setCount(pageSearch.size());
             dataResponse.setResult(true);
         }
         return dataResponse;
     }
 
-    public DataResponse getSearchAllSite(String query) {
+    public DataResponse getSearchAllSite(String query, Integer limit, Integer offset) {
         DataResponse dataResponse = new DataResponse();
         List<Data> dataList = new ArrayList<>();
         dataResponse.setResult(false);
@@ -306,7 +304,6 @@ public class StatisticsServiceImpl implements StatisticsService {
                 GetLemmaList lemmaQuery = new GetLemmaList();
                 lemmaList = lemmaQuery.getListLemmas(word);
             } catch (Exception ignored) {
-                System.out.println(ignored);
             }
             for (String lemma : lemmaList) {
                 List<Lemma> lemmaDB = lemmaRepository.findByLemma(lemma);
@@ -316,10 +313,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                     LemmaSearch.add(lemmaDB.get(0));
 
                 }
-                List<Index> indexForSearch = new ArrayList<>();
-                for (Index index : indexDB) {
-                        indexForSearch.add(index);
-                }
+                List<Index> indexForSearch = new ArrayList<>(indexDB);
                 listIndex.add(indexForSearch);
             }
         }
@@ -338,7 +332,7 @@ public class StatisticsServiceImpl implements StatisticsService {
             dataList = mapToData(pageSearch, LemmaSearch, maxAbsRelevant);
             dataList.sort(Comparator.comparing(Data::getRelevance));
             Collections.reverse(dataList);
-            dataResponse.setData(dataList);
+            dataResponse.setData(dataList.stream().skip(offset).limit(limit).toList());
             dataResponse.setCount(pageSearch.size());
             dataResponse.setResult(true);
         }
@@ -432,50 +426,41 @@ public class StatisticsServiceImpl implements StatisticsService {
 
                 Pattern pattern = Pattern.compile(">[«»A-Za-zА-Яа-я.,?!\\-\\[\\]{}()=;:'\"@#№%\\s+0-9]+</");
                 Matcher matcher = pattern.matcher(content);
-                int i = 0;
                 while (matcher.find()) {
-                    boolean found = true;
                     for (Lemma lemma : lemmaList) {
-                        if (!matcher.group().contains(lemma.getLemma())) {
-                            found = false;
-                            break;
-                        }
-                    }
-                    if (found) {
-                        i++;
-                        if (i <= 1) {
+                        if (matcher.group().toLowerCase().contains(lemma.getLemma())) {
                             if (matcher.group().length() > 200) {
-                                int lemma = matcher.group().indexOf(lemmaList.get(0).getLemma());
+                                int lemmaIndex = matcher.group().toLowerCase().indexOf(lemma.getLemma().toLowerCase());
                                 snippet.append("<p>");
-                                if (lemma > 50) {
-                                    snippet.append("<p>...").append(matcher.group(), 50, lemma);
+                                if (lemmaIndex > 50) {
+                                    snippet.append("<p>...").append(matcher.group(), 50, lemmaIndex);
                                 } else {
-                                    snippet.append(matcher.group(), 1, lemma);
+                                    snippet.append(matcher.group(), 1, lemmaIndex);
                                 }
                                 snippet.append("<b>")
-                                        .append(matcher.group(), lemma, lemma + lemmaList.get(0).getLemma().length())
+                                        .append(matcher.group(), lemmaIndex, lemmaIndex + lemma.getLemma().length())
                                         .append("</b>");
-                                if (matcher.group().length() > lemma + lemmaList.get(0).getLemma().length() + 150) {
-                                    snippet.append(matcher.group(), lemma + lemmaList.get(0).getLemma().length(), lemma + lemmaList.get(0).getLemma().length() + 150)
+                                if (matcher.group().length() > lemmaIndex + lemma.getLemma().length() + 150) {
+                                    snippet.append(matcher.group(), lemmaIndex + lemma.getLemma().length(), lemmaIndex + lemma.getLemma().length() + 150)
                                             .append("...</p>");
                                 } else {
-                                    snippet.append(matcher.group(), lemma + lemmaList.get(0).getLemma().length(), matcher.group().length())
+                                    snippet.append(matcher.group(), lemmaIndex + lemma.getLemma().length(), matcher.group().length())
                                             .append("</p>");
                                 }
                             } else {
-                                int lemma = matcher.group().indexOf(lemmaList.get(0).getLemma());
+                                int lemmaIndex = matcher.group().toLowerCase().indexOf(lemma.getLemma().toLowerCase());
                                 snippet.append("<p>")
-                                        .append(matcher.group(), 1, lemma)
+                                        .append(matcher.group(), 1, lemmaIndex)
                                         .append("<b>")
-                                        .append(matcher.group(), lemma, lemma + lemmaList.get(0).getLemma().length())
+                                        .append(matcher.group(), lemmaIndex, lemmaIndex + lemma.getLemma().length())
                                         .append("</b>")
-                                        .append(matcher.group(), lemma + lemmaList.get(0).getLemma().length(), matcher.group().length())
+                                        .append(matcher.group(), lemmaIndex + lemma.getLemma().length(), matcher.group().length())
                                         .append("</p>");
                             }
                         }
                     }
                 }
-            } catch (IllegalStateException ex) {
+            } catch (IllegalStateException ignored) {
             }
 
             String snippetOnSearch = String.valueOf(snippet);
