@@ -218,7 +218,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 }
 
             } catch (Exception ex) {
-                System.out.println(ex);
+               ex.printStackTrace();
             }
         }
         return response;
@@ -356,6 +356,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                         saveLemmaAndIndex(siteDB, page);
                     }
                 } catch (Exception ex) {
+                    ex.printStackTrace();
                 }
             }
         } else {
@@ -419,9 +420,7 @@ public class StatisticsServiceImpl implements StatisticsService {
             try {
                 Pattern patternTitle = Pattern.compile("<title[A-Za-z\"=:\\-+\\s]*>[«»A-Za-zА-Яа-я.,?\\-!\\[\\]{}()=;:'\"@#№%\\s0-9/+]+</title>");
                 Matcher matcherTitle = patternTitle.matcher(content);
-                matcherTitle.find();
                 title = matcherTitle.group().substring(matcherTitle.group().indexOf(">") + 1, matcherTitle.group().indexOf("<", matcherTitle.group().indexOf(">")));
-
                 Pattern pattern = Pattern.compile(">[«»A-Za-zА-Яа-я.,?!\\-\\[\\]{}()=;:'\"@#№%\\s+0-9]+</");
                 Matcher matcher = pattern.matcher(content);
                 while (matcher.find()) {
