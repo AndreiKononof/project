@@ -20,7 +20,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -211,7 +210,6 @@ public class StatisticsServiceImpl implements StatisticsService {
                 Page page = mapToPage(siteDB, code, pageUri, doc.toString());
                 pageRepository.save(page);
 
-
                 if (page.getCode() < 299 & page.getCode() >= 200) {
                     saveLemmaAndIndex(siteDB, page);
                     response.setResult(true);
@@ -236,9 +234,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         List<Lemma> LemmaSearch = new ArrayList<>();
         SiteDB site = siteRepository.findSiteByUrl(siteQuery).get(0);
 
-
         String[] queryWords = query.toLowerCase().split("\\s");
-
         List<List<Index>> listIndex = new ArrayList<>();
 
         for (String word : queryWords) {
@@ -356,7 +352,9 @@ public class StatisticsServiceImpl implements StatisticsService {
                 }
                 try {
                     Page page = pageRepository.findById(pageId).get();
-                    saveLemmaAndIndex(siteDB, page);
+                    if (!(page.getCode() > 299)) {
+                        saveLemmaAndIndex(siteDB, page);
+                    }
                 } catch (Exception ex) {
                 }
             }
