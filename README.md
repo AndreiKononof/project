@@ -1,7 +1,7 @@
 <body>
     <header>
         <div class="container">
-            <h1>Поисковой движок "Helion"</h1>
+            <h1>Поисковый движок "Helion"</h1>
             <h2><b>"Helion"</b> - search engine</h2>
             <div class="image-header">
                 <img src="data/image/helion2.png" alt="Helion">
