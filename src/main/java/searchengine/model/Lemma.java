@@ -25,6 +25,6 @@ public class Lemma {
 
     @Override
     public String toString() {
-        return id+" "+lemma;
+        return id+" "+lemma +" "+site.getId();
     }
 }

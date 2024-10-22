@@ -1,11 +1,12 @@
 package searchengine.controllers;
 
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import searchengine.dto.statistics.DataResponse;
 import searchengine.dto.statistics.IndexResponse;
 import searchengine.dto.statistics.StatisticsResponse;
+import searchengine.services.IndexService;
+import searchengine.services.SearchService;
 import searchengine.services.StatisticsService;
 
 @RestController
@@ -13,9 +14,13 @@ import searchengine.services.StatisticsService;
 public class ApiController {
 
     private final StatisticsService statisticsService;
+    private final SearchService searchService;
+    private final IndexService indexService;
 
-    public ApiController(StatisticsService statisticsService) {
+    public ApiController(StatisticsService statisticsService, SearchService searchService, IndexService indexService) {
         this.statisticsService = statisticsService;
+        this.searchService = searchService;
+        this.indexService = indexService;
     }
 
     @GetMapping("/statistics")
@@ -25,17 +30,17 @@ public class ApiController {
 
     @GetMapping("/startIndexing")
     public ResponseEntity<IndexResponse> indexStart() {
-        return ResponseEntity.ok(statisticsService.getStartIndexing());
+        return ResponseEntity.ok(indexService.getStartIndexing());
     }
 
     @GetMapping("/stopIndexing")
     public ResponseEntity<IndexResponse> indexStop (){
-        return ResponseEntity.ok(statisticsService.getStopIndexing());
+        return ResponseEntity.ok(indexService.getStopIndexing());
     }
 
     @PostMapping("/indexPage")
     public ResponseEntity<IndexResponse> indexPage (@RequestParam String url){
-        return ResponseEntity.ok(statisticsService.getIndexPageOrSite(url));
+        return ResponseEntity.ok(indexService.getIndexPageOrSite(url));
     }
 
     @GetMapping("/search")
@@ -44,8 +49,8 @@ public class ApiController {
                                                 @RequestParam(value = "limit", defaultValue = "20") Integer limit,
                                                 @RequestParam(value = "offset", defaultValue = "0") Integer offset){
             if(site == null) {
-            return ResponseEntity.ok(statisticsService.getSearchAllSite(query,limit,offset));
+            return ResponseEntity.ok(searchService.getSearchAllSite(query,limit,offset));
             }
-            return ResponseEntity.ok(statisticsService.getSearch(query,site,limit,offset));
+            return ResponseEntity.ok(searchService.getSearch(query,site,limit,offset));
     }
 }
