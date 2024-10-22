@@ -19,6 +19,9 @@ import java.net.URLConnection;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -90,6 +93,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         indexingStop = false;
         IndexResponse response = new IndexResponse();
         response.setResult(true);
+        ExecutorService service = Executors.newScheduledThreadPool(10);
 
         if (getIndexingNow()) {
             response.setResult(false);
@@ -105,11 +109,15 @@ public class StatisticsServiceImpl implements StatisticsService {
             if (indexingStop) {
                 break;
             }
-            new Thread(() -> {
+            service.submit(() -> {
                 threads.add(Thread.currentThread());
+                System.out.println(Thread.currentThread() + " - " + site.getUrl());
                 indexingSait(site);
-            }).start();
+
+            });
         }
+        service.shutdown();
+        threads.forEach(el -> System.out.println(el.getState() + " " + el.getName()));
         return response;
     }
 
@@ -221,7 +229,7 @@ public class StatisticsServiceImpl implements StatisticsService {
                 }
 
             } catch (Exception ex) {
-               ex.printStackTrace();
+                ex.printStackTrace();
             }
         }
         return response;
@@ -524,7 +532,6 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     private void saveLemmaAndIndex(SiteDB site, Page page) throws IOException {
-        System.out.println(site.getUrl() + " " + page.getId() + " индексируется");
         List<Lemma> lemmaList = getLemmaListOnThePage(site, page);
         List<Lemma> cashLemma = new ArrayList<>();
         List<Lemma> lemmaOnPage = new ArrayList<>();

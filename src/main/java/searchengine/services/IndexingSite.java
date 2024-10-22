@@ -26,7 +26,8 @@ public class IndexingSite {
     public HashSet<String> getLinks() {
         Document document;
         try {
-            document = Jsoup.connect(url).get();
+            document = Jsoup.connect(url).userAgent("HelionSearchEngine").referrer("google.com").get();
+            int code = Jsoup.connect(url).execute().statusCode();
             String uri = url;
             if (uri.equals(siteDB.getUrl())) {
                 uri = "";
@@ -34,7 +35,7 @@ public class IndexingSite {
                 uri = url.substring(siteDB.getUrl().length());
             }
             if (!uri.isEmpty()) {
-                Page page = mapToPage(siteDB, 200, uri, document.toString());
+                Page page = mapToPage(siteDB, code, uri, document.toString());
                 pageRepository.save(page);
             }
             Thread.sleep(50);
@@ -53,8 +54,8 @@ public class IndexingSite {
                 for (Element element : elements) {
                     String link = element.attr("href");
                     if (!link.isEmpty() & checkLink(link)) {
-                        if (repeatHref != null & link.startsWith(repeatHref)) {
-                                link = link.substring(repeatHref.length());
+                        if (repeatHref != null) {
+                            if (link.startsWith(repeatHref)) link = link.substring(repeatHref.length());
                         }
                         if (link.endsWith("/")) {
                             links.add(link.substring(0, link.length() - 1));

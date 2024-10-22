@@ -19,7 +19,7 @@ spring:
   liquibase:
     change-log: classpath:db/change-log/db.changelog-master.xml
     enabled: true
-    drop-first: false
+    drop-first: true
 
 indexing-settings:
   sites:
@@ -27,8 +27,8 @@ indexing-settings:
 #      name: Лента.ру
 #    - url: https://www.skillbox.ru
 #      name: Skillbox.ru
-    - url: http://ispu.ru
-      name: ИГЭУ
+#    - url: http://ispu.ru
+#      name: ИГЭУ
     - url: https://www.stmwater.ru
       name: Доставка Воды
 #    - url: https://www.playback.ru
