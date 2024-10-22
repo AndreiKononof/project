@@ -71,7 +71,6 @@ public class IndexServiceImpl implements IndexService{
             service.submit(() -> {
                 threads.add(Thread.currentThread());
                 indexingSait(site);
-
             });
         }
         service.shutdown();

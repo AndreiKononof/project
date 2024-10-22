@@ -29,7 +29,7 @@
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="site_id" type="int">
-                <constraints nullable="false"/>
+                <constraints nullable="false" foreignKeyName="page_site" references="site(id)"/>
             </column>
             <column name="path" type="VARCHAR(255)">
                 <constraints nullable="false"/>
@@ -46,7 +46,7 @@
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="site_id" type="int">
-                <constraints nullable="false"/>
+                <constraints nullable="false" foreignKeyName="lemma_site" references="site(id)"/>
             </column>
             <column name="lemma" type="VARCHAR(255)">
                 <constraints nullable="false"/>
@@ -60,10 +60,10 @@
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="page_id" type="int">
-                <constraints nullable="false"/>
+                <constraints nullable="false" foreignKeyName="index_page" references="page(id)"/>
             </column>
             <column name="lemma_id" type="int">
-                <constraints nullable="false"/>
+                <constraints nullable="false" foreignKeyName="index_lemma" references="lemma(id)"/>
             </column>
             <column name="rank_values" type="FLOAT">
                 <constraints nullable="false"/>
