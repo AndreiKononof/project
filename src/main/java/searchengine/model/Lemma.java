@@ -14,6 +14,7 @@ public class Lemma {
     private int id;
 
     @ManyToOne(cascade = CascadeType.REMOVE, fetch = FetchType.EAGER)
+    @JoinColumn(name = "site_id")
     private SiteDB site;
 
     @Column(name = "lemma", columnDefinition = "VARCHAR(255)")

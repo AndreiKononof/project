@@ -18,7 +18,7 @@ public interface PageRepository extends JpaRepository<Page, Integer> {
     @Query(value = "Select id From Page Where path = :path and site = :site ")
     Optional<Integer> findIdPage(@Param("path") String path, @Param("site") SiteDB siteDB);
 
-    @Query(value = "Select count(*) From Page Where site = :site")
+    @Query(value = "Select count(p) From Page p Where p.site = :site")
     Integer findCountPageOnSite (@Param("site") SiteDB siteDB);
 
     @Query(value = "SELECT id FROM Page Where site = :site")

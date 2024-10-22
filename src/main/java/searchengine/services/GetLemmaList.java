@@ -12,10 +12,17 @@ import java.util.regex.Pattern;
 
 public class GetLemmaList {
 
-    LuceneMorphology luceneMorphology = new RussianLuceneMorphology();
 
-    public GetLemmaList() throws IOException {
+    LuceneMorphology luceneMorphology;
+
+    {
+        try {
+            luceneMorphology = new RussianLuceneMorphology();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
+
 
     public List<String> getListLemmas(String text){
         List<String> lemmas = new ArrayList<>();

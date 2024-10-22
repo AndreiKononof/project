@@ -20,7 +20,7 @@ public class ApiController {
 
     @GetMapping("/statistics")
     public ResponseEntity<StatisticsResponse> statistics() {
-        return ResponseEntity.status(HttpStatusCode.valueOf(202)).body(statisticsService.getStatistics());
+        return ResponseEntity.ok(statisticsService.getStatistics());
     }
 
     @GetMapping("/startIndexing")

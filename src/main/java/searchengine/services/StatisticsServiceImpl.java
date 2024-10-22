@@ -31,7 +31,7 @@ public class StatisticsServiceImpl implements StatisticsService {
     private final PageRepository pageRepository;
     private final LemmaRepository lemmaRepository;
     private final IndexRepository indexRepository;
-    private boolean indexingStop;
+    private volatile boolean indexingStop;
 
     private final SitesList sites;
     private final List<Thread> threads;
@@ -64,11 +64,13 @@ public class StatisticsServiceImpl implements StatisticsService {
             int pages = pageList.size();
             List<String> lemmaList = lemmaRepository.findAllLemmas(siteDB);
             int lemmas = lemmaList.size();
+
             item.setPages(pages);
             item.setLemmas(lemmas);
             item.setStatus(siteDB.getStatus().toString());
             item.setError(siteDB.getLastError());
             item.setStatusTime(siteDB.getStatusTime().toInstant(zoneOffset).toEpochMilli());
+
             total.setPages(total.getPages() + pages);
             total.setLemmas(total.getLemmas() + lemmas);
             detailed.add(item);
@@ -154,7 +156,7 @@ public class StatisticsServiceImpl implements StatisticsService {
             slash = url.indexOf("/", http.length());
             siteUrl = url.substring(0, slash);
             pageUri = url.substring(slash);
-        } catch (Exception ignored) {
+        } catch (Exception e) {
             siteUrl = url;
             pageUri = "";
         }
@@ -176,7 +178,8 @@ public class StatisticsServiceImpl implements StatisticsService {
                 siteDB = siteRepository.findById(siteId.get(0)).get();
                 site.setUrl(siteDB.getUrl());
                 site.setName(siteDB.getName());
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
         } else {
             site.setUrl(siteUrl);
@@ -242,7 +245,8 @@ public class StatisticsServiceImpl implements StatisticsService {
             try {
                 GetLemmaList lemmaQuery = new GetLemmaList();
                 lemmaList = lemmaQuery.getListLemmas(word);
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
             for (String lemma : lemmaList) {
                 List<Lemma> lemmaDB = lemmaRepository.findByLemma(lemma);
@@ -299,7 +303,8 @@ public class StatisticsServiceImpl implements StatisticsService {
             try {
                 GetLemmaList lemmaQuery = new GetLemmaList();
                 lemmaList = lemmaQuery.getListLemmas(word);
-            } catch (Exception ignored) {
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
             for (String lemma : lemmaList) {
                 List<Lemma> lemmaDB = lemmaRepository.findByLemma(lemma);
@@ -336,7 +341,6 @@ public class StatisticsServiceImpl implements StatisticsService {
     }
 
     private void indexingSait(Site site) {
-        long start = System.currentTimeMillis();
         SiteDB siteDB = mapToSaitDB(site.getUrl(), site.getName(), errors[3]);
 
         if (getCheckInternet(site.getUrl())) {
@@ -371,7 +375,6 @@ public class StatisticsServiceImpl implements StatisticsService {
             siteRepository.saveAndFlush(siteDB);
 
         }
-        System.out.println("Индексация сайта " + siteDB.getName() + " завершенна за - " + (System.currentTimeMillis() - start));
     }
 
     private boolean getCheckInternet(String siteUrl) {
@@ -386,7 +389,7 @@ public class StatisticsServiceImpl implements StatisticsService {
         return checkInternet;
     }
 
-    private synchronized void deleteAllDB() {
+    private void deleteAllDB() {
         siteRepository.deleteAll();
         pageRepository.deleteAll();
         lemmaRepository.deleteAll();
@@ -457,7 +460,8 @@ public class StatisticsServiceImpl implements StatisticsService {
                         }
                     }
                 }
-            } catch (IllegalStateException ignored) {
+            } catch (IllegalStateException ex) {
+                ex.printStackTrace();
             }
 
             String snippetOnSearch = String.valueOf(snippet);

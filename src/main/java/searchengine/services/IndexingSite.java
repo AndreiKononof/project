@@ -27,13 +27,13 @@ public class IndexingSite {
         Document document;
         try {
             document = Jsoup.connect(url).get();
-            String uri=url;
-            if(uri.equals(siteDB.getUrl())){
-                uri ="";
+            String uri = url;
+            if (uri.equals(siteDB.getUrl())) {
+                uri = "";
             } else {
                 uri = url.substring(siteDB.getUrl().length());
             }
-            if(!uri.isEmpty()) {
+            if (!uri.isEmpty()) {
                 Page page = mapToPage(siteDB, 200, uri, document.toString());
                 pageRepository.save(page);
             }
@@ -52,18 +52,14 @@ public class IndexingSite {
             if (!elements.isEmpty()) {
                 for (Element element : elements) {
                     String link = element.attr("href");
-                    if (!link.isEmpty()) {
-                        if (checkLink(link)) {
-                            if (repeatHref != null) {
-                                if (link.startsWith(repeatHref)) {
-                                    link = link.substring(repeatHref.length());
-                                }
-                            }
-                            if (link.endsWith("/")) {
-                                links.add(link.substring(0, link.length() - 1));
-                            } else {
-                                links.add(link);
-                            }
+                    if (!link.isEmpty() & checkLink(link)) {
+                        if (repeatHref != null & link.startsWith(repeatHref)) {
+                                link = link.substring(repeatHref.length());
+                        }
+                        if (link.endsWith("/")) {
+                            links.add(link.substring(0, link.length() - 1));
+                        } else {
+                            links.add(link);
                         }
                     }
                 }

@@ -14,9 +14,11 @@ public class Index {
     private int id;
 
     @ManyToOne(cascade = CascadeType.REMOVE, fetch = FetchType.EAGER)
+    @JoinColumn(name = "page_id")
     private Page page;
 
     @ManyToOne(cascade = CascadeType.REMOVE, fetch = FetchType.EAGER)
+    @JoinColumn(name = "lemma_id")
     private Lemma lemma;
 
     @Column(name = "rank_values")
