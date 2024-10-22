@@ -30,7 +30,7 @@ public class IndexingSite {
             int code = Jsoup.connect(url).execute().statusCode();
             String uri = url;
             if (uri.equals(siteDB.getUrl())) {
-                uri = "";
+                uri = "/";
             } else {
                 uri = url.substring(siteDB.getUrl().length());
             }

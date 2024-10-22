@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @RequiredArgsConstructor
@@ -30,10 +31,10 @@ public class IndexServiceImpl implements IndexService{
     private final PageRepository pageRepository;
     private final LemmaRepository lemmaRepository;
     private final IndexRepository indexRepository;
-    private volatile boolean indexingStop;
+    private final ExecutorService service = Executors.newFixedThreadPool(10);
+    private static final AtomicBoolean indexingStop = new AtomicBoolean();
 
     private final SitesList sites;
-    private final List<Thread> threads;
     private final String[] errors = {
             "Ошибка индексации: главная страница сайта не доступна",
             "Ошибка индексации: сайт не доступен",
@@ -49,10 +50,9 @@ public class IndexServiceImpl implements IndexService{
 
     @Override
     public IndexResponse getStartIndexing() {
-        indexingStop = false;
+        indexingStop.set(false);
         IndexResponse response = new IndexResponse();
         response.setResult(true);
-        ExecutorService service = Executors.newScheduledThreadPool(10);
 
         if (getIndexingNow()) {
             response.setResult(false);
@@ -65,13 +65,10 @@ public class IndexServiceImpl implements IndexService{
 
         List<Site> sitesList = sites.getSites();
         for (Site site : sitesList) {
-            if (indexingStop) {
+            if (indexingStop.get()) {
                 break;
             }
-            service.submit(() -> {
-                threads.add(Thread.currentThread());
-                indexingSait(site);
-            });
+            service.submit(() -> indexingSait(site));
         }
         service.shutdown();
         return response;
@@ -82,11 +79,8 @@ public class IndexServiceImpl implements IndexService{
         IndexResponse response = new IndexResponse();
         response.setResult(true);
 
-        indexingStop = true;
-        for (Thread thread : threads) {
-            thread.interrupt();
-        }
-        threads.clear();
+        service.shutdownNow();
+        indexingStop.set(true);
 
         synchronized (siteRepository) {
             siteRepository.findAll().forEach(el -> {
@@ -202,7 +196,7 @@ public class IndexServiceImpl implements IndexService{
 
             List<Integer> pageListId = pageRepository.findAllIdWhereSite(siteDB);
             for (Integer pageId : pageListId) {
-                if (indexingStop) {
+                if (indexingStop.get()) {
                     break;
                 }
                 try {

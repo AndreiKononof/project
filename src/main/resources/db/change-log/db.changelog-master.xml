@@ -29,7 +29,7 @@
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="site_id" type="int">
-                <constraints nullable="false" foreignKeyName="page_site" references="site(id)"/>
+                <constraints nullable="false"/>
             </column>
             <column name="path" type="VARCHAR(255)">
                 <constraints nullable="false"/>
@@ -46,7 +46,7 @@
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="site_id" type="int">
-                <constraints nullable="false" foreignKeyName="lemma_site" references="site(id)"/>
+                <constraints nullable="false"/>
             </column>
             <column name="lemma" type="VARCHAR(255)">
                 <constraints nullable="false"/>
@@ -60,10 +60,10 @@
                 <constraints primaryKey="true" nullable="false"/>
             </column>
             <column name="page_id" type="int">
-                <constraints nullable="false" foreignKeyName="index_page" references="page(id)"/>
+                <constraints nullable="false"/>
             </column>
             <column name="lemma_id" type="int">
-                <constraints nullable="false" foreignKeyName="index_lemma" references="lemma(id)"/>
+                <constraints nullable="false"/>
             </column>
             <column name="rank_values" type="FLOAT">
                 <constraints nullable="false"/>
@@ -73,5 +73,13 @@
             <column name="path">
             </column>
         </createIndex>
+        <addForeignKeyConstraint baseTableName="index_site" baseColumnNames="page_id" constraintName="index_page" referencedTableName="page"
+                                 referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="index_site" baseColumnNames="lemma_id" constraintName="index_lemma" referencedTableName="lemma"
+                                 referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="lemma" baseColumnNames="site_id" constraintName="lemma_site" referencedTableName="site"
+                                 referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="page" baseColumnNames="site_id" constraintName="page_site" referencedTableName="site"
+                                 referencedColumnNames="id"/>
     </changeSet>
 </databaseChangeLog>
